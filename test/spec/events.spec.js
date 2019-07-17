@@ -1,114 +1,109 @@
 import Events from '../../src/common/events';
 
-beforeEach(function() {
+beforeEach(() => {
     Events.unsubscribe();
 });
-describe("subscribe", function() {
+describe('subscribe', () => {
+    it('should call one callback for a single event', () => {
+        const callbackA = sinon.stub();
+        const callbackB = sinon.stub();
 
+        Events.subscribe('test', callbackA);
+        Events.subscribe('test', callbackB);
+        Events.publish('test');
 
-    it("should call one callback for a single event", function() {
-        var callbackA = sinon.stub(),
-            callbackB = sinon.stub();
-
-        Events.subscribe("test", callbackA);
-        Events.subscribe("test", callbackB);
-        Events.publish("test");
-
-        expect(callbackA.calledOnce).to.be.equal(true);
-        expect(callbackB.calledOnce).to.be.equal(true);
+        expect(callbackA.calledOnce).to.equal(true);
+        expect(callbackB.calledOnce).to.equal(true);
     });
 
-    it("should call one callback twice if published twice", function() {
-        var callback = sinon.stub();
+    it('should call one callback twice if published twice', () => {
+        const callback = sinon.stub();
 
-        Events.subscribe("test", callback);
+        Events.subscribe('test', callback);
 
-        Events.publish("test");
-        Events.publish("test");
+        Events.publish('test');
+        Events.publish('test');
 
-        expect(callback.calledTwice).to.be.equal(true);
+        expect(callback.calledTwice).to.equal(true);
     });
 
-    it("should call the callback asynchronuously", function(done) {
-        var test = {
-                callback: function() {
+    it('should call the callback asynchronuously', function (done) {
+        const test = {
+            callback: () => { }
+        };
 
-                }
-            };
-
-        sinon.stub(test, "callback", function() {
-            expect(test.callback.calledOnce).to.be.true;
+        sinon.stub(test, 'callback').callsFake(() => {
+            expect(test.callback.calledOnce).to.equal(true);
             done();
         });
-        Events.subscribe("test", test.callback, true);
-        Events.publish("test");
-        expect(test.callback.called).to.be.false;
+        Events.subscribe('test', test.callback, true);
+        Events.publish('test');
+        expect(test.callback.called).to.equal(false);
     });
 });
 
-describe("once", function() {
-    it("should call the callback once, even when published twice", function() {
-        var callbackA = sinon.stub(),
-            callbackB = sinon.stub();
+describe('once', () => {
+    it('should call the callback once, even when published twice', () => {
+        const callbackA = sinon.stub();
+        const callbackB = sinon.stub();
 
-        Events.once("test", callbackA);
-        Events.subscribe("test", callbackB);
+        Events.once('test', callbackA);
+        Events.subscribe('test', callbackB);
 
-        Events.publish("test");
-        Events.publish("test");
+        Events.publish('test');
+        Events.publish('test');
 
-        expect(callbackA.calledOnce).to.be.equal(true);
-        expect(callbackB.calledTwice).to.be.equal(true);
+        expect(callbackA.calledOnce).to.equal(true);
+        expect(callbackB.calledTwice).to.equal(true);
     });
 });
 
-describe("unsubscribe", function() {
-    it("should unsubscribe all callbacks from a single event", function() {
-        var callbackA = sinon.stub(),
-            callbackB = sinon.stub(),
-            callbackC = sinon.stub();
+describe('unsubscribe', () => {
+    it('should unsubscribe all callbacks from a single event', () => {
+        const callbackA = sinon.stub();
+        const callbackB = sinon.stub();
+        const callbackC = sinon.stub();
 
-        Events.subscribe("test", callbackA);
-        Events.subscribe("test", callbackB);
-        Events.subscribe("testC", callbackC);
+        Events.subscribe('test', callbackA);
+        Events.subscribe('test', callbackB);
+        Events.subscribe('testC', callbackC);
 
-        Events.publish("test");
+        Events.publish('test');
 
-        expect(callbackC.called).to.be.equal(false);
-        expect(callbackA.calledOnce).to.be.equal(true);
-        expect(callbackB.calledOnce).to.be.equal(true);
+        expect(callbackC.called).to.equal(false);
+        expect(callbackA.calledOnce).to.equal(true);
+        expect(callbackB.calledOnce).to.equal(true);
 
-        Events.publish("testC");
+        Events.publish('testC');
 
-        expect(callbackC.calledOnce).to.be.equal(true);
-        expect(callbackA.calledOnce).to.be.equal(true);
-        expect(callbackB.calledOnce).to.be.equal(true);
+        expect(callbackC.calledOnce).to.equal(true);
+        expect(callbackA.calledOnce).to.equal(true);
+        expect(callbackB.calledOnce).to.equal(true);
 
-        Events.unsubscribe("test");
-        Events.publish("test");
+        Events.unsubscribe('test');
+        Events.publish('test');
 
-        expect(callbackC.calledOnce).to.be.equal(true);
-        expect(callbackA.calledOnce).to.be.equal(true);
-        expect(callbackB.calledOnce).to.be.equal(true);
+        expect(callbackC.calledOnce).to.equal(true);
+        expect(callbackA.calledOnce).to.equal(true);
+        expect(callbackB.calledOnce).to.equal(true);
     });
 
-    it("should unsubscribe a single callback from a single event", function() {
-        var callbackA = sinon.stub(),
-            callbackB = sinon.stub();
+    it('should unsubscribe a single callback from a single event', () => {
+        const callbackA = sinon.stub();
+        const callbackB = sinon.stub();
 
-        Events.subscribe("test", callbackA);
-        Events.subscribe("test", callbackB);
+        Events.subscribe('test', callbackA);
+        Events.subscribe('test', callbackB);
 
-        Events.publish("test");
+        Events.publish('test');
 
-        expect(callbackA.calledOnce).to.be.equal(true);
-        expect(callbackB.calledOnce).to.be.equal(true);
+        expect(callbackA.calledOnce).to.equal(true);
+        expect(callbackB.calledOnce).to.equal(true);
 
+        Events.unsubscribe('test', callbackB);
+        Events.publish('test');
 
-        Events.unsubscribe("test", callbackB);
-        Events.publish("test");
-
-        expect(callbackA.calledTwice).to.be.equal(true);
-        expect(callbackB.calledOnce).to.be.equal(true);
+        expect(callbackA.calledTwice).to.equal(true);
+        expect(callbackB.calledOnce).to.equal(true);
     });
 });

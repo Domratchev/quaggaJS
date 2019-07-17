@@ -1,4 +1,4 @@
-// Type definitions for QuaggaJS v0.12.1 (2017-10-19)
+// Type definitions for QuaggaJS v0.13.0 (2019-07-11)
 // Project: http://serratus.github.io/quaggaJS/
 // Definitions by: Cam Birch, Peter Horwood aka Madman Pierre, Dan Manastireanu <https://github.com/danmana>
 
@@ -267,14 +267,11 @@ interface QuaggaJSResultCollectorFilterFunction {
  */
 interface QuaggaJSResultObject {
     codeResult: QuaggaJSResultObject_CodeResult;
-    line: {
-        x: number;
-        y: number;
-    }[];
+    line: QuaggaJSxy[];
     angle: number;
     pattern: number[];
-    box: number[][];
-    boxes: number[][][];
+    box: QuaggaJSxy[];
+    boxes: QuaggaJSxy[][];
 }
 
 interface QuaggaJSResultObject_CodeResult {
@@ -323,8 +320,8 @@ interface QuaggaJSConfigObject {
          * @default "LiveStream"
          */
         type?: string;
-		
-		target?: HTMLElement,
+
+        target?: HTMLElement,
 
         constraints?: QuaggaJSConstraints;
 

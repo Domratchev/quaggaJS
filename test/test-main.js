@@ -1,7 +1,7 @@
 require('events').EventEmitter.prototype._maxListeners = 0;
-require('core-js/es5');
+// require('core-js/es5');
 
-const testsContext = require.context("./spec", true, /.*js$/);
+const testsContext = require.context('./spec', true, /.*js$/);
 testsContext.keys().forEach(testsContext);
 
 const componentsContext = require.context('../src/', true, /\.*js$/);

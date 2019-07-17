@@ -1,103 +1,88 @@
-import EANReader from './ean_reader';
+import { EANReader } from './ean_reader';
 
-function UPCEReader(opts, supplements) {
-    EANReader.call(this, opts, supplements);
-}
+export class UPCEReader extends EANReader {
+    get CODE_FREQUENCY() {
+        return [[56, 52, 50, 49, 44, 38, 35, 42, 41, 37], [7, 11, 13, 14, 19, 25, 28, 21, 22, 26]];
+    }
 
-var properties = {
-    CODE_FREQUENCY: {value: [
-        [ 56, 52, 50, 49, 44, 38, 35, 42, 41, 37 ],
-        [7, 11, 13, 14, 19, 25, 28, 21, 22, 26]]},
-    STOP_PATTERN: { value: [1 / 6 * 7, 1 / 6 * 7, 1 / 6 * 7, 1 / 6 * 7, 1 / 6 * 7, 1 / 6 * 7]},
-    FORMAT: {value: "upc_e", writeable: false}
-};
+    get STOP_PATTERN() {
+        return [1 / 6 * 7, 1 / 6 * 7, 1 / 6 * 7, 1 / 6 * 7, 1 / 6 * 7, 1 / 6 * 7];
+    }
 
-UPCEReader.prototype = Object.create(EANReader.prototype, properties);
-UPCEReader.prototype.constructor = UPCEReader;
+    constructor(config, supplements) {
+        super(config, supplements);
 
-UPCEReader.prototype._decodePayload = function(code, result, decodedCodes) {
-    var i,
-        self = this,
-        codeFrequency = 0x0;
+        this._format = 'upc_e';
+    }
 
-    for ( i = 0; i < 6; i++) {
-        code = self._decodeCode(code.end);
-        if (!code) {
+    _decodePayload(code, result, decodedCodes) {
+        let codeFrequency = 0x0;
+
+        for (let i = 0; i < 6; i++) {
+            code = this._decodeCode(code.end);
+            if (!code) {
+                return null;
+            }
+            if (code.code >= this.CODE_G_START) {
+                code.code = code.code - this.CODE_G_START;
+                codeFrequency |= 1 << (5 - i);
+            }
+            result.push(code.code);
+            decodedCodes.push(code);
+        }
+        if (!this._determineParity(codeFrequency, result)) {
             return null;
         }
-        if (code.code >= self.CODE_G_START) {
-            code.code = code.code - self.CODE_G_START;
-            codeFrequency |= 1 << (5 - i);
+
+        return code;
+    }
+
+    _determineParity(codeFrequency, result) {
+        for (let nrSystem = 0; nrSystem < this.CODE_FREQUENCY.length; nrSystem++) {
+            for (let i = 0; i < this.CODE_FREQUENCY[nrSystem].length; i++) {
+                if (codeFrequency === this.CODE_FREQUENCY[nrSystem][i]) {
+                    result.unshift(nrSystem);
+                    result.push(i);
+                    return true;
+                }
+            }
         }
-        result.push(code.code);
-        decodedCodes.push(code);
-    }
-    if (!self._determineParity(codeFrequency, result)) {
-        return null;
+        return false;
     }
 
-    return code;
-};
+    _convertToUPCA(result) {
+        const lastDigit = result[result.length - 2];
+        let upca = [result[0]];
 
-UPCEReader.prototype._determineParity = function(codeFrequency, result) {
-    var i,
-        nrSystem;
+        if (lastDigit <= 2) {
+            upca = upca.concat(result.slice(1, 3)).concat([lastDigit, 0, 0, 0, 0]).concat(result.slice(3, 6));
+        } else if (lastDigit === 3) {
+            upca = upca.concat(result.slice(1, 4)).concat([0, 0, 0, 0, 0]).concat(result.slice(4, 6));
+        } else if (lastDigit === 4) {
+            upca = upca.concat(result.slice(1, 5)).concat([0, 0, 0, 0, 0, result[5]]);
+        } else {
+            upca = upca.concat(result.slice(1, 6)).concat([0, 0, 0, 0, lastDigit]);
+        }
 
-    for (nrSystem = 0; nrSystem < this.CODE_FREQUENCY.length; nrSystem++){
-        for ( i = 0; i < this.CODE_FREQUENCY[nrSystem].length; i++) {
-            if (codeFrequency === this.CODE_FREQUENCY[nrSystem][i]) {
-                result.unshift(nrSystem);
-                result.push(i);
-                return true;
+        upca.push(result[result.length - 1]);
+        return upca;
+    }
+
+    _checksum(result) {
+        return super._checksum(this._convertToUPCA(result));
+    }
+
+    _findEnd(offset, isWhite) {
+        isWhite = true;
+        return super._findEnd(offset, isWhite);
+    }
+
+    _verifyTrailingWhitespace(endInfo) {
+        const trailingWhitespaceEnd = endInfo.end + ((endInfo.end - endInfo.start) / 2);
+        if (trailingWhitespaceEnd < this._row.length) {
+            if (this._matchRange(endInfo.end, trailingWhitespaceEnd, 0)) {
+                return endInfo;
             }
         }
     }
-    return false;
-};
-
-UPCEReader.prototype._convertToUPCA = function(result) {
-    var upca = [result[0]],
-        lastDigit = result[result.length - 2];
-
-    if (lastDigit <= 2) {
-        upca = upca.concat(result.slice(1, 3))
-            .concat([lastDigit, 0, 0, 0, 0])
-            .concat(result.slice(3, 6));
-    } else if (lastDigit === 3) {
-        upca = upca.concat(result.slice(1, 4))
-            .concat([0, 0, 0, 0, 0])
-            .concat(result.slice(4, 6));
-    } else if (lastDigit === 4) {
-        upca = upca.concat(result.slice(1, 5))
-            .concat([0, 0, 0, 0, 0, result[5]]);
-    } else {
-        upca = upca.concat(result.slice(1, 6))
-            .concat([0, 0, 0, 0, lastDigit]);
-    }
-
-    upca.push(result[result.length - 1]);
-    return upca;
-};
-
-UPCEReader.prototype._checksum = function(result) {
-    return EANReader.prototype._checksum.call(this, this._convertToUPCA(result));
-};
-
-UPCEReader.prototype._findEnd = function(offset, isWhite) {
-    isWhite = true;
-    return EANReader.prototype._findEnd.call(this, offset, isWhite);
-};
-
-UPCEReader.prototype._verifyTrailingWhitespace = function(endInfo) {
-    var self = this,
-        trailingWhitespaceEnd;
-
-    trailingWhitespaceEnd = endInfo.end + ((endInfo.end - endInfo.start) / 2);
-    if (trailingWhitespaceEnd < self._row.length) {
-        if (self._matchRange(endInfo.end, trailingWhitespaceEnd, 0)) {
-            return endInfo;
-        }
-    }
-};
-
-export default UPCEReader;
+}

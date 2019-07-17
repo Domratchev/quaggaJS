@@ -1,51 +1,47 @@
-import Code39Reader from './code_39_reader';
+import { Code39Reader } from './code_39_reader';
 
-function Code39VINReader() {
-    Code39Reader.call(this);
-}
+export class Code39VINReader extends Code39Reader {
+    constructor() {
+        super();
 
-var patterns = {
-    IOQ: /[IOQ]/g,
-    AZ09: /[A-Z0-9]{17}/
-};
-
-Code39VINReader.prototype = Object.create(Code39Reader.prototype);
-Code39VINReader.prototype.constructor = Code39VINReader;
-
-// Cribbed from:
-// https://github.com/zxing/zxing/blob/master/core/src/main/java/com/google/zxing/client/result/VINResultParser.java
-Code39VINReader.prototype._decode = function() {
-    var result = Code39Reader.prototype._decode.apply(this);
-    if (!result) {
-        return null;
+        this._format = 'code_39_vin';
     }
 
-    var code = result.code;
-
-    if (!code) {
-        return null;
-    }
-
-    code = code.replace(patterns.IOQ, '');
-
-    if (!code.match(patterns.AZ09)) {
-        if (ENV.development) {
-            console.log('Failed AZ09 pattern code:', code);
+    /**
+     * @borrows
+     * https://github.com/zxing/zxing/blob/master/core/src/main/java/com/google/zxing/client/result/VINResultParser.java
+     */
+    _decode() {
+        const result = super._decode();
+        if (!result) {
+            return null;
         }
-        return null;
+
+        let code = result.code;
+
+        if (!code) {
+            return null;
+        }
+
+        code = code.replace(/[IOQ]/g, '');
+
+        if (!/[A-Z0-9]{17}/.test(code)) {
+            if (ENV.development) {
+                console.log('Failed AZ09 pattern code:', code);
+            }
+            return null;
+        }
+
+        if (!this._checkChecksum(code)) {
+            return null;
+        }
+
+        result.code = code;
+        return result;
     }
 
-    if (!this._checkChecksum(code)) {
-        return null;
+    _checkChecksum(code) {
+        // TODO
+        return !!code;
     }
-
-    result.code = code;
-    return result;
-};
-
-Code39VINReader.prototype._checkChecksum = function(code) {
-    // TODO
-    return !!code;
-};
-
-export default Code39VINReader;
+}

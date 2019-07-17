@@ -1,5 +1,4 @@
-/* @preserve ASM BEGIN */
-/* eslint-disable eqeqeq*/
+/* eslint-disable eqeqeq */
 function Skeletonizer(stdlib, foreign, buffer) {
     "use asm";
 
@@ -202,6 +201,5 @@ function Skeletonizer(stdlib, foreign, buffer) {
         skeletonize: skeletonize
     };
 }
-/* @preserve ASM END */
 export default Skeletonizer;
-/* eslint-enable eqeqeq*/
+/* eslint-enable eqeqeq */

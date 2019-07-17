@@ -1,12 +1,6 @@
-import {omit, pick} from 'lodash';
-import {getUserMedia, enumerateDevices} from 'mediaDevices';
+import { getUserMedia, enumerateDevices } from 'Common/media-devices';
 
-const facingMatching = {
-    "user": /front/i,
-    "environment": /back/i
-};
-
-var streamRef;
+let streamRef;
 
 function waitForVideo(video) {
     return new Promise((resolve, reject) => {
@@ -16,7 +10,7 @@ function waitForVideo(video) {
             if (attempts > 0) {
                 if (video.videoWidth > 10 && video.videoHeight > 10) {
                     if (ENV.development) {
-                        console.log(video.videoWidth + "px x " + video.videoHeight + "px");
+                        console.log(`${video.videoWidth}px x ${video.videoHeight}px`);
                     }
                     resolve();
                 } else {
@@ -39,36 +33,36 @@ function waitForVideo(video) {
  */
 function initCamera(video, constraints) {
     return getUserMedia(constraints)
-    .then((stream) => {
-        return new Promise((resolve) => {
-            streamRef = stream;
-            video.setAttribute("autoplay", true);
-            video.setAttribute('muted', true);
-            video.setAttribute('playsinline', true);
-            video.srcObject = stream;
-            video.addEventListener('loadedmetadata', () => {
-                video.play();
-                resolve();
+        .then((stream) => {
+            return new Promise((resolve) => {
+                streamRef = stream;
+                video.setAttribute('autoplay', true);
+                video.setAttribute('muted', true);
+                video.setAttribute('playsinline', true);
+                video.srcObject = stream;
+                video.addEventListener('loadedmetadata', () => {
+                    video.play();
+                    resolve();
+                });
             });
-        });
-    })
-    .then(waitForVideo.bind(null, video));
+        })
+        .then(waitForVideo.bind(null, video));
 }
 
 function deprecatedConstraints(videoConstraints) {
-    const normalized = pick(videoConstraints, ["width", "height", "facingMode",
-            "aspectRatio", "deviceId"]);
+    let { width, height, facingMode, aspectRatio, deviceId } = videoConstraints;
 
-    if (typeof videoConstraints.minAspectRatio !== 'undefined' &&
-            videoConstraints.minAspectRatio > 0) {
-        normalized.aspectRatio = videoConstraints.minAspectRatio;
-        console.log("WARNING: Constraint 'minAspectRatio' is deprecated; Use 'aspectRatio' instead");
+    if (typeof videoConstraints.minAspectRatio !== 'undefined' && videoConstraints.minAspectRatio > 0) {
+        aspectRatio = videoConstraints.minAspectRatio;
+        console.log(`WARNING: Constraint 'minAspectRatio' is deprecated; Use 'aspectRatio' instead`);
     }
+
     if (typeof videoConstraints.facing !== 'undefined') {
-        normalized.facingMode = videoConstraints.facing;
-        console.log("WARNING: Constraint 'facing' is deprecated. Use 'facingMode' instead'");
+        facingMode = videoConstraints.facing;
+        console.log(`WARNING: Constraint 'facing' is deprecated. Use 'facingMode' instead'`);
     }
-    return normalized;
+
+    return { width, height, facingMode, aspectRatio, deviceId };
 }
 
 export function pickConstraints(videoConstraints) {
@@ -77,16 +71,16 @@ export function pickConstraints(videoConstraints) {
         video: deprecatedConstraints(videoConstraints)
     };
 
-    if (normalizedConstraints.video.deviceId
-            && normalizedConstraints.video.facingMode) {
+    if (normalizedConstraints.video.deviceId && normalizedConstraints.video.facingMode) {
         delete normalizedConstraints.video.facingMode;
     }
+
     return Promise.resolve(normalizedConstraints);
 }
 
 function enumerateVideoDevices() {
     return enumerateDevices()
-    .then(devices => devices.filter(device => device.kind === 'videoinput'));
+        .then(devices => devices.filter(device => device.kind === 'videoinput'));
 }
 
 function getActiveTrack() {
@@ -99,19 +93,19 @@ function getActiveTrack() {
 }
 
 export default {
-    request: function(video, videoConstraints) {
+    request: function (video, videoConstraints) {
         return pickConstraints(videoConstraints)
             .then(initCamera.bind(null, video));
     },
-    release: function() {
-        var tracks = streamRef && streamRef.getVideoTracks();
+    release: function () {
+        const tracks = streamRef && streamRef.getVideoTracks();
         if (tracks && tracks.length) {
             tracks[0].stop();
         }
         streamRef = null;
     },
     enumerateVideoDevices,
-    getActiveStreamLabel: function() {
+    getActiveStreamLabel: function () {
         const track = getActiveTrack();
         return track ? track.label : '';
     },

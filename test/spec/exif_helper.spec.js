@@ -1,9 +1,4 @@
-import {
-    findTagsInObjectURL,
-    findTagsInBuffer,
-    base64ToArrayBuffer
-} from '../../src/input/exif_helper';
-
+import { findTagsInObjectURL, findTagsInBuffer } from '../../src/input/exif_helper';
 
 const fixtures = {
     orientation: {
@@ -15,44 +10,58 @@ const fixtures = {
     }
 };
 
+function base64ToArrayBuffer(dataUrl) {
+    const base64 = dataUrl.replace(/^data\:([^\;]+)\;base64,/gmi, '');
+    const binary = atob(base64);
+    const len = binary.length;
+    const buffer = new ArrayBuffer(len);
+    const view = new Uint8Array(buffer);
+
+    for (let i = 0; i < len; i++) {
+        view[i] = binary.charCodeAt(i);
+    }
+
+    return buffer;
+}
+
 describe('exif_helper', () => {
-    describe("findTagsInObjectURL", () => {
-        it("should return null if the src type is not supported", (done) => {
-            findTagsInObjectURL("blabla").then(tags => {
+    describe('findTagsInObjectURL', () => {
+        it('should return null if the src type is not supported', done => {
+            findTagsInObjectURL('blabla').then(tags => {
                 expect(tags === null).to.equal(true);
                 done();
             });
         });
 
-        it("should fail for a invalid blob type", (done) => {
-            findTagsInObjectURL('blob:balbla')
-            .then(() => {})
-            .catch(err => {
-                console.log(err);
-                expect(typeof err !== 'undefined');
-            }).then(done);
+        it('should fail for a invalid blob type', done => {
+            findTagsInObjectURL('blob:blabla')
+                .then(() => { })
+                .catch(err => {
+                    console.log(err);
+                    expect(typeof err !== 'undefined');
+                }).then(done);
         });
     });
 
-    describe("findTagsInBuffer", () => {
-        it("should result in a rotation value of 1", () => {
+    describe('findTagsInBuffer', () => {
+        it('should result in a rotation value of 1', () => {
             const result = findTagsInBuffer(base64ToArrayBuffer(fixtures.orientation['1']));
-            expect(result).to.deep.equal({orientation: 1});
+            expect(result).to.deep.equal({ orientation: 1 });
         });
-        it("should result in a rotation value of 6", () => {
+        it('should result in a rotation value of 6', () => {
             const result = findTagsInBuffer(base64ToArrayBuffer(fixtures.orientation['6']));
-            expect(result).to.deep.equal({orientation: 6});
+            expect(result).to.deep.equal({ orientation: 6 });
         });
-        it("should result in a rotation value of 3", () => {
+        it('should result in a rotation value of 3', () => {
             const result = findTagsInBuffer(base64ToArrayBuffer(fixtures.orientation['3']));
-            expect(result).to.deep.equal({orientation: 3});
+            expect(result).to.deep.equal({ orientation: 3 });
         });
-        it("should result in a rotation value of 4", () => {
+        it('should result in a rotation value of 4', () => {
             const result = findTagsInBuffer(base64ToArrayBuffer(fixtures.orientation['8']));
-            expect(result).to.deep.equal({orientation: 8});
+            expect(result).to.deep.equal({ orientation: 8 });
         });
-        it("should return nothing if orientation is not found", () => {
-            const result = findTagsInBuffer(base64ToArrayBuffer(fixtures.orientation['none']));
+        it('should return nothing if orientation is not found', () => {
+            const result = findTagsInBuffer(base64ToArrayBuffer(fixtures.orientation.none));
             expect(result).to.deep.equal({});
         });
     });

@@ -1,39 +1,37 @@
-var path = require('path');
-var webpack = require('webpack');
+const path = require('path');
+const webpack = require('webpack');
 
-module.exports = function(config) {
+module.exports = function (config) {
     config.set({
         basePath: '',
         frameworks: ['mocha', 'chai', 'sinon', 'sinon-chai'],
         files: [
             'test/test-main-integration.js',
-            {pattern: 'test/integration/**/*.js', included: false},
-            {pattern: 'test/fixtures/**/*.*', included: false}
+            { pattern: 'test/integration/**/*.js', included: false },
+            { pattern: 'test/fixtures/**/*.*', included: false }
         ],
         preprocessors: {
             'test/test-main-integration.js': ['webpack']
         },
         webpack: {
-            entry: [
-                './src/quagga.js'
-            ],
+            entry: './src/quagga.js',
+            mode: 'development',
             module: {
-                loaders: [{
+                rules: [{
                     test: /\.jsx?$/,
                     exclude: /node_modules/,
                     loader: 'babel-loader'
                 }]
             },
             resolve: {
-                modules: [
-                    path.resolve('./src/input/'),
-                    path.resolve('./src/common/'),
-                    'node_modules'
-                ]
+                alias: {
+                    Common: path.resolve(__dirname, 'src/common/'),
+                    Input: path.resolve(__dirname, 'src/input/')
+                }
             },
             plugins: [
                 new webpack.DefinePlugin({
-                    ENV: require(path.join(__dirname, './env/production'))
+                    ENV: require(path.resolve(__dirname, 'env', 'production'))
                 })
             ]
         },
@@ -50,7 +48,14 @@ module.exports = function(config) {
         colors: true,
         logLevel: config.LOG_INFO, // LOG_DEBUG
         autoWatch: true,
-        browsers: ['Chrome'],
+        customLaunchers: {
+            ChromeDebugging: {
+                base: 'Chrome',
+                flags: ['--remote-debugging-port=9333'],
+                debug: true
+            }
+        },
+        browsers: ['ChromeDebugging'],
         singleRun: false
     });
 };

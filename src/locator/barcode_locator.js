@@ -1,56 +1,34 @@
-import ImageWrapper from '../common/image_wrapper';
-import {
-    calculatePatchSize,
-    otsuThreshold,
-    hsv2rgb,
-    cluster,
-    topGeneric,
-    imageRef,
-    halfSample,
-    computeImageArea
-} from '../common/cv_utils';
-import ArrayHelper from '../common/array_helper';
-import ImageDebug from '../common/image_debug';
-import Rasterizer from './rasterizer';
-import Tracer from './tracer';
+import { Cluster } from '../common/cluster';
+import { calculatePatchSize, computeImageArea, halfSample, hsv2rgb, otsuThreshold } from '../common/cv_utils';
+import { ImageDebug } from '../common/image_debug';
+import { ImageWrapper } from '../common/image_wrapper';
+import { Rasterizer } from './rasterizer';
 import skeletonizer from './skeletonizer';
-const vec2 = {
-    clone: require('gl-vec2/clone'),
-    dot:  require('gl-vec2/dot'),
-    scale: require('gl-vec2/scale'),
-    transformMat2: require('gl-vec2/transformMat2')
-};
-const mat2 = {
-    copy: require('gl-mat2/copy'),
-    create: require('gl-mat2/create'),
-    invert: require('gl-mat2/invert')
-}
+import { SearchDirections } from './tracer';
 
-var _config,
-    _currentImageWrapper,
-    _skelImageWrapper,
-    _subImageWrapper,
-    _labelImageWrapper,
-    _patchGrid,
-    _patchLabelGrid,
-    _imageToPatchGrid,
-    _binaryImageWrapper,
-    _patchSize,
-    _canvasContainer = {
-        ctx: {
-            binary: null
-        },
-        dom: {
-            binary: null
-        }
+let _config;
+let _currentImageWrapper;
+let _skelImageWrapper;
+let _subImageWrapper;
+let _labelImageWrapper;
+let _patchGrid;
+let _patchLabelGrid;
+let _imageToPatchGrid;
+let _binaryImageWrapper;
+let _patchSize;
+let _canvasContainer = {
+    ctx: {
+        binary: null
     },
-    _numPatches = {x: 0, y: 0},
-    _inputImageWrapper,
-    _skeletonizer;
+    dom: {
+        binary: null
+    }
+};
+let _numPatches = { x: 0, y: 0 };
+let _inputImageWrapper;
+let _skeletonizer;
 
 function initBuffers() {
-    var skeletonImageData;
-
     if (_config.halfSample) {
         _currentImageWrapper = new ImageWrapper({
             x: _inputImageWrapper.size.x / 2 | 0,
@@ -69,15 +47,16 @@ function initBuffers() {
 
     _labelImageWrapper = new ImageWrapper(_patchSize, undefined, Array, true);
 
-    skeletonImageData = new ArrayBuffer(64 * 1024);
-    _subImageWrapper = new ImageWrapper(_patchSize,
-        new Uint8Array(skeletonImageData, 0, _patchSize.x * _patchSize.y));
+    const skeletonImageData = new ArrayBuffer(64 * 1024);
+    _subImageWrapper = new ImageWrapper(_patchSize, new Uint8Array(skeletonImageData, 0, _patchSize.x * _patchSize.y));
     _skelImageWrapper = new ImageWrapper(_patchSize,
         new Uint8Array(skeletonImageData, _patchSize.x * _patchSize.y * 3, _patchSize.x * _patchSize.y),
         undefined, true);
-    _skeletonizer = skeletonizer((typeof window !== 'undefined') ? window : (typeof self !== 'undefined') ? self : global, {
-        size: _patchSize.x
-    }, skeletonImageData);
+    _skeletonizer = skeletonizer(
+        (typeof window !== 'undefined') ? window : (typeof self !== 'undefined') ? self : global,
+        { size: _patchSize.x },
+        skeletonImageData
+    );
 
     _imageToPatchGrid = new ImageWrapper({
         x: (_currentImageWrapper.size.x / _subImageWrapper.size.x) | 0,
@@ -91,106 +70,132 @@ function initCanvas() {
     if (_config.useWorker || typeof document === 'undefined') {
         return;
     }
-    _canvasContainer.dom.binary = document.createElement("canvas");
-    _canvasContainer.dom.binary.className = "binaryBuffer";
-    if (ENV.development && _config.debug.showCanvas === true) {
-        document.querySelector("#debug").appendChild(_canvasContainer.dom.binary);
+    _canvasContainer.dom.binary = document.createElement('canvas');
+    _canvasContainer.dom.binary.className = 'binaryBuffer';
+    if (_config.debug && _config.debug.showCanvas) {
+        document.querySelector('#debug').appendChild(_canvasContainer.dom.binary);
     }
-    _canvasContainer.ctx.binary = _canvasContainer.dom.binary.getContext("2d");
+    _canvasContainer.ctx.binary = _canvasContainer.dom.binary.getContext('2d');
     _canvasContainer.dom.binary.width = _binaryImageWrapper.size.x;
     _canvasContainer.dom.binary.height = _binaryImageWrapper.size.y;
 }
 
 /**
  * Creates a bounding box which encloses all the given patches
- * @returns {Array} The minimal bounding box
+ * @returns The minimal bounding box
  */
 function boxFromPatches(patches) {
-    var overAvg,
-        i,
-        j,
-        patch,
-        transMat,
-        minx =
-        _binaryImageWrapper.size.x,
-        miny = _binaryImageWrapper.size.y,
-        maxx = -_binaryImageWrapper.size.x,
-        maxy = -_binaryImageWrapper.size.y,
-        box,
-        scale;
-
-    // draw all patches which are to be taken into consideration
-    overAvg = 0;
-    for ( i = 0; i < patches.length; i++) {
-        patch = patches[i];
-        overAvg += patch.rad;
-        if (ENV.development && _config.debug.showPatches) {
-            ImageDebug.drawRect(patch.pos, _subImageWrapper.size, _canvasContainer.ctx.binary, {color: "red"});
+    let averageRad = patches.reduce((sum, patch) => {
+        if (_config.debug && _config.debug.showPatches) {
+            // draw all patches which are to be taken into consideration
+            ImageDebug.drawRect(patch.pos, _subImageWrapper.size, _canvasContainer.ctx.binary, { color: 'red' });
         }
-    }
 
-    overAvg /= patches.length;
-    overAvg = (overAvg * 180 / Math.PI + 90) % 180 - 90;
-    if (overAvg < 0) {
-        overAvg += 180;
-    }
+        return sum + patch.rad;
+    }, 0) / patches.length;
 
-    overAvg = (180 - overAvg) * Math.PI / 180;
-    transMat = mat2.copy(mat2.create(), [Math.cos(overAvg), Math.sin(overAvg), -Math.sin(overAvg), Math.cos(overAvg)]);
+    averageRad = (averageRad * 180 / Math.PI + 90) % 180 - 90;
+    if (averageRad < 0) {
+        averageRad += 180;
+    }
+    averageRad = (180 - averageRad) * Math.PI / 180;
+
+    const cos = Math.cos(averageRad);
+    const sin = Math.sin(averageRad);
+    const matrix = Float32Array.from([cos, sin, -sin, cos]);
+    const context = _canvasContainer.ctx.binary;
 
     // iterate over patches and rotate by angle
-    for ( i = 0; i < patches.length; i++) {
-        patch = patches[i];
-        for ( j = 0; j < 4; j++) {
-            vec2.transformMat2(patch.box[j], patch.box[j], transMat);
+    patches.forEach(patch => {
+        for (let j = 0; j < 4; j++) {
+            patch.box[j] = transformWithMatrix(patch.box[j], matrix);
         }
 
-        if (ENV.development && _config.debug.boxFromPatches.showTransformed) {
-            ImageDebug.drawPath(patch.box, {x: 0, y: 1}, _canvasContainer.ctx.binary, {color: '#99ff00', lineWidth: 2});
+        if (_config.debug && _config.debug.boxFromPatches.showTransformed) {
+            ImageDebug.drawPath(patch.box, { x: 'x', y: 'y' }, context, { color: '#99ff00', lineWidth: 2 });
         }
-    }
+    });
+
+    let minX = _binaryImageWrapper.size.x;
+    let minY = _binaryImageWrapper.size.y;
+    let maxX = -minX;
+    let maxY = -minY;
 
     // find bounding box
-    for ( i = 0; i < patches.length; i++) {
-        patch = patches[i];
-        for ( j = 0; j < 4; j++) {
-            if (patch.box[j][0] < minx) {
-                minx = patch.box[j][0];
+    patches.forEach(patch => {
+        patch.box.forEach(vertex => {
+            if (vertex.x < minX) {
+                minX = vertex.x;
             }
-            if (patch.box[j][0] > maxx) {
-                maxx = patch.box[j][0];
+            if (vertex.x > maxX) {
+                maxX = vertex.x;
             }
-            if (patch.box[j][1] < miny) {
-                miny = patch.box[j][1];
+            if (vertex.y < minY) {
+                minY = vertex.y;
             }
-            if (patch.box[j][1] > maxy) {
-                maxy = patch.box[j][1];
+            if (vertex.y > maxY) {
+                maxY = vertex.y;
             }
-        }
+        });
+    });
+
+    const box = [{ x: minX, y: minY }, { x: maxX, y: minY }, { x: maxX, y: maxY }, { x: minX, y: maxY }];
+
+    if (_config.debug && _config.debug.boxFromPatches.showTransformedBox) {
+        ImageDebug.drawPath(box, { x: 'x', y: 'y' }, context, { color: '#ff0000', lineWidth: 2 });
     }
 
-    box = [[minx, miny], [maxx, miny], [maxx, maxy], [minx, maxy]];
-
-    if (ENV.development && _config.debug.boxFromPatches.showTransformedBox) {
-        ImageDebug.drawPath(box, {x: 0, y: 1}, _canvasContainer.ctx.binary, {color: '#ff0000', lineWidth: 2});
+    // reverse rotation
+    const inverseMatrix = invert(matrix);
+    for (let j = 0; j < 4; j++) {
+        box[j] = transformWithMatrix(box[j], inverseMatrix);
     }
 
-    scale = _config.halfSample ? 2 : 1;
-    // reverse rotation;
-    transMat = mat2.invert(transMat, transMat);
-    for ( j = 0; j < 4; j++) {
-        vec2.transformMat2(box[j], box[j], transMat);
+    if (_config.debug && _config.debug.boxFromPatches.showBB) {
+        ImageDebug.drawPath(box, { x: 'x', y: 'y' }, context, { color: '#ff0000', lineWidth: 2 });
     }
 
-    if (ENV.development && _config.debug.boxFromPatches.showBB) {
-        ImageDebug.drawPath(box, {x: 0, y: 1}, _canvasContainer.ctx.binary, {color: '#ff0000', lineWidth: 2});
-    }
-
-    for ( j = 0; j < 4; j++) {
-        vec2.scale(box[j], box[j], scale);
+    if (_config.halfSample) {
+        // scale
+        box.forEach(vertex => {
+            vertex.x *= 2;
+            vertex.y *= 2;
+        });
     }
 
     return box;
+}
+
+/**
+ * Invert matrix
+ * @param matrix the matrix to invert
+ * @returns the inverted matrix
+ */
+function invert(matrix) {
+    const a0 = matrix[0];
+    const a1 = matrix[1];
+    const a2 = matrix[2];
+    const a3 = matrix[3];
+    const determinant = a0 * a3 - a2 * a1;
+
+    if (!determinant) {
+        return null;
+    }
+
+    return Float32Array.from([a3 / determinant, -a1 / determinant, -a2 / determinant, a0 / determinant]);
+}
+
+/**
+ * Transforms the vector with a matrix
+ * @param { x, y } vector to transform
+ * @param matric matrix to transform with
+ * @returns the transformed vector
+ */
+function transformWithMatrix({ x, y }, matrix) {
+    return {
+        x: matrix[0] * x + matrix[2] * y,
+        y: matrix[1] * x + matrix[3] * y
+    };
 }
 
 /**
@@ -199,7 +204,8 @@ function boxFromPatches(patches) {
 function binarizeImage() {
     otsuThreshold(_currentImageWrapper, _binaryImageWrapper);
     _binaryImageWrapper.zeroBorder();
-    if (ENV.development && _config.debug.showCanvas) {
+
+    if (_config.debug && _config.debug.showCanvas) {
         _binaryImageWrapper.show(_canvasContainer.dom.binary, 255);
     }
 }
@@ -209,47 +215,39 @@ function binarizeImage() {
  * extract patches
  */
 function findPatches() {
-    var i,
-        j,
-        x,
-        y,
-        moments,
-        patchesFound = [],
-        rasterizer,
-        rasterResult,
-        patch;
-    for (i = 0; i < _numPatches.x; i++) {
-        for (j = 0; j < _numPatches.y; j++) {
-            x = _subImageWrapper.size.x * i;
-            y = _subImageWrapper.size.y * j;
+    const context = _canvasContainer.ctx.binary;
+    let patchesFound = [];
+
+    for (let i = 0; i < _numPatches.x; i++) {
+        for (let j = 0; j < _numPatches.y; j++) {
+            const x = _subImageWrapper.size.x * i;
+            const y = _subImageWrapper.size.y * j;
 
             // seperate parts
             skeletonize(x, y);
 
             // Rasterize, find individual bars
             _skelImageWrapper.zeroBorder();
-            ArrayHelper.init(_labelImageWrapper.data, 0);
-            rasterizer = Rasterizer.create(_skelImageWrapper, _labelImageWrapper);
-            rasterResult = rasterizer.rasterize(0);
+            _labelImageWrapper.data.fill(0);
+            const rasterizer = new Rasterizer(_skelImageWrapper, _labelImageWrapper);
+            const rasterResult = rasterizer.rasterize(0);
 
-            if (ENV.development && _config.debug.showLabels) {
-                _labelImageWrapper.overlay(_canvasContainer.dom.binary, Math.floor(360 / rasterResult.count),
-                    {x: x, y: y});
+            if (_config.debug && _config.debug.showLabels) {
+                _labelImageWrapper.overlay(_canvasContainer.dom.binary, Math.floor(360 / rasterResult.count), x, y);
             }
 
             // calculate moments from the skeletonized patch
-            moments = _labelImageWrapper.moments(rasterResult.count);
+            const moments = _labelImageWrapper.moments(rasterResult.count);
 
             // extract eligible patches
-            patchesFound = patchesFound.concat(describePatch(moments, [i, j], x, y));
-        }
-    }
+            const patch = describePatch(moments, j * _numPatches.x + i, x, y);
+            if (patch) {
+                patchesFound.push(patch);
 
-    if (ENV.development && _config.debug.showFoundPatches) {
-        for ( i = 0; i < patchesFound.length; i++) {
-            patch = patchesFound[i];
-            ImageDebug.drawRect(patch.pos, _subImageWrapper.size, _canvasContainer.ctx.binary,
-                {color: "#99ff00", lineWidth: 2});
+                if (_config.debug && _config.debug.showFoundPatches) {
+                    ImageDebug.drawRect(patch.pos, _subImageWrapper.size, context, { color: '#99ff00', lineWidth: 2 });
+                }
+            }
         }
     }
 
@@ -259,39 +257,33 @@ function findPatches() {
 /**
  * Finds those connected areas which contain at least 6 patches
  * and returns them ordered DESC by the number of contained patches
- * @param {Number} maxLabel
+ * @param maxLabel
  */
-function findBiggestConnectedAreas(maxLabel){
-    var i,
-        sum,
-        labelHist = [],
-        topLabels = [];
+function findBiggestConnectedAreas(maxLabel) {
+    let labelHist = [];
 
-    for ( i = 0; i < maxLabel; i++) {
+    for (let i = 0; i < maxLabel; i++) {
         labelHist.push(0);
     }
-    sum = _patchLabelGrid.data.length;
-    while (sum--) {
-        if (_patchLabelGrid.data[sum] > 0) {
-            labelHist[_patchLabelGrid.data[sum] - 1]++;
+
+    let i = _patchLabelGrid.data.length;
+    while (i--) {
+        if (_patchLabelGrid.data[i] > 0) {
+            labelHist[_patchLabelGrid.data[i] - 1]++;
         }
     }
 
-    labelHist = labelHist.map(function(val, idx) {
+    labelHist = labelHist.map((val, index) => {
         return {
-            val: val,
-            label: idx + 1
+            val,
+            label: index + 1
         };
     });
 
-    labelHist.sort(function(a, b) {
-        return b.val - a.val;
-    });
+    labelHist.sort((a, b) => b.val - a.val);
 
     // extract top areas with at least 6 patches present
-    topLabels = labelHist.filter(function(el) {
-        return el.val >= 5;
-    });
+    const topLabels = labelHist.filter(el => el.val >= 5);
 
     return topLabels;
 }
@@ -300,224 +292,214 @@ function findBiggestConnectedAreas(maxLabel){
  *
  */
 function findBoxes(topLabels, maxLabel) {
-    var i,
-        j,
-        sum,
-        patches = [],
-        patch,
-        box,
-        boxes = [],
-        hsv = [0, 1, 1],
-        rgb = [0, 0, 0];
+    const boxes = [];
+    const hsv = [0, 1, 1];
+    const rgb = [0, 0, 0];
 
-    for ( i = 0; i < topLabels.length; i++) {
-        sum = _patchLabelGrid.data.length;
-        patches.length = 0;
-        while (sum--) {
+    for (let i = 0; i < topLabels.length; i++) {
+        const patches = [];
+
+        for (let sum = _patchLabelGrid.data.length; sum--;) {
             if (_patchLabelGrid.data[sum] === topLabels[i].label) {
-                patch = _imageToPatchGrid.data[sum];
+                const patch = _imageToPatchGrid.data[sum];
                 patches.push(patch);
             }
         }
-        box = boxFromPatches(patches);
+
+        const box = boxFromPatches(patches);
+
         if (box) {
             boxes.push(box);
 
             // draw patch-labels if requested
-            if (ENV.development && _config.debug.showRemainingPatchLabels) {
-                for ( j = 0; j < patches.length; j++) {
-                    patch = patches[j];
-                    hsv[0] = (topLabels[i].label / (maxLabel + 1)) * 360;
-                    hsv2rgb(hsv, rgb);
-                    ImageDebug.drawRect(patch.pos, _subImageWrapper.size, _canvasContainer.ctx.binary,
-                        {color: "rgb(" + rgb.join(",") + ")", lineWidth: 2});
-                }
+            if (_config.debug && _config.debug.showRemainingPatchLabels) {
+                hsv[0] = (topLabels[i].label / (maxLabel + 1)) * 360;
+                hsv2rgb(hsv, rgb);
+
+                const context = _canvasContainer.ctx.binary;
+                const style = {
+                    color: 'rgb(' + rgb.join(',') + ')',
+                    lineWidth: 2
+                };
+
+                patches.forEach(patch => ImageDebug.drawRect(patch.pos, _subImageWrapper.size, context, style));
             }
         }
     }
+
     return boxes;
 }
 
+function clusterize(points, threshold, property = 'rad') {
+    const clusters = [];
+
+    points.forEach((value, index) => {
+        const point = {
+            rad: value[property],
+            point: value,
+            id: index
+        };
+        const matchingCluster = clusters.find(cluster => cluster.fits(point));
+
+        if (matchingCluster) {
+            matchingCluster.add(point);
+        } else {
+            clusters.push(new Cluster(threshold, point));
+        }
+    });
+
+    return clusters;
+};
+
 /**
  * Find similar moments (via cluster)
- * @param {Object} moments
+ * @param moments
  */
 function similarMoments(moments) {
-    var clusters = cluster(moments, 0.90);
-    var topCluster = topGeneric(clusters, 1, function(e) {
-        return e.getPoints().length;
-    });
-    var points = [], result = [];
-    if (topCluster.length === 1) {
-        points = topCluster[0].item.getPoints();
-        for (var i = 0; i < points.length; i++) {
-            result.push(points[i].point);
-        }
-    }
+    const clusters = clusterize(moments, 0.90);
+    const topCluster = clusters.reduce((top, item) => {
+        const count = item.points.length;
+        return count > top.count ? { item, count } : top;
+    }, { item: { points: [] }, count: 0 });
+    const result = topCluster.item.points.map(point => point.point);
+
     return result;
 }
 
 function skeletonize(x, y) {
-    _binaryImageWrapper.subImageAsCopy(_subImageWrapper, imageRef(x, y));
+    _binaryImageWrapper.subImageAsCopy(_subImageWrapper, x, y);
     _skeletonizer.skeletonize();
 
     // Show skeleton if requested
-    if (ENV.development && _config.debug.showSkeleton) {
-        _skelImageWrapper.overlay(_canvasContainer.dom.binary, 360, imageRef(x, y));
+    if (_config.debug && _config.debug.showSkeleton) {
+        _skelImageWrapper.overlay(_canvasContainer.dom.binary, 360, x, y);
     }
 }
 
 /**
  * Extracts and describes those patches which seem to contain a barcode pattern
  * @param {Array} moments
- * @param {Object} patchPos,
+ * @param {Number} index
  * @param {Number} x
  * @param {Number} y
  * @returns {Array} list of patches
  */
-function describePatch(moments, patchPos, x, y) {
-    var k,
-        avg,
-        eligibleMoments = [],
-        matchingMoments,
-        patch,
-        patchesFound = [],
-        minComponentWeight = Math.ceil(_patchSize.x / 3);
-
-    if (moments.length >= 2) {
-        // only collect moments which's area covers at least minComponentWeight pixels.
-        for ( k = 0; k < moments.length; k++) {
-            if (moments[k].m00 > minComponentWeight) {
-                eligibleMoments.push(moments[k]);
-            }
-        }
+function describePatch(moments, index, x, y) {
+    if (moments.length > 1) {
+        const minComponentWeight = Math.ceil(_patchSize.x / 3);
+        // only collect moments which area covers at least minComponentWeight pixels
+        const eligibleMoments = moments.filter(moment => moment.m00 > minComponentWeight);
 
         // if at least 2 moments are found which have at least minComponentWeights covered
-        if (eligibleMoments.length >= 2) {
-            matchingMoments = similarMoments(eligibleMoments);
-            avg = 0;
-            // determine the similarity of the moments
-            for ( k = 0; k < matchingMoments.length; k++) {
-                avg += matchingMoments[k].rad;
-            }
+        if (eligibleMoments.length > 1) {
+            const matchingMoments = similarMoments(eligibleMoments);
+            const length = matchingMoments.length;
 
             // Only two of the moments are allowed not to fit into the equation
-            // add the patch to the set
-            if (matchingMoments.length > 1
-                    && matchingMoments.length >= (eligibleMoments.length / 4) * 3
-                    && matchingMoments.length > moments.length / 4) {
-                avg /= matchingMoments.length;
-                patch = {
-                    index: patchPos[1] * _numPatches.x + patchPos[0],
-                    pos: {
-                        x: x,
-                        y: y
-                    },
+            if (length > 1 && length >= (eligibleMoments.length / 4) * 3 && length > moments.length / 4) {
+                // determine the similarity of the moments
+                const rad = matchingMoments.reduce((sum, moment) => sum + moment.rad, 0) / length;
+
+                return {
+                    index,
+                    pos: { x, y },
                     box: [
-                        vec2.clone([x, y]),
-                        vec2.clone([x + _subImageWrapper.size.x, y]),
-                        vec2.clone([x + _subImageWrapper.size.x, y + _subImageWrapper.size.y]),
-                        vec2.clone([x, y + _subImageWrapper.size.y])
+                        { x, y },
+                        { x: x + _subImageWrapper.size.x, y },
+                        { x: x + _subImageWrapper.size.x, y: y + _subImageWrapper.size.y },
+                        { x, y: y + _subImageWrapper.size.y }
                     ],
                     moments: matchingMoments,
-                    rad: avg,
-                    vec: vec2.clone([Math.cos(avg), Math.sin(avg)])
+                    rad,
+                    x: Math.cos(rad),
+                    y: Math.sin(rad)
                 };
-                patchesFound.push(patch);
             }
         }
     }
-    return patchesFound;
+
+    return null;
 }
 
 /**
  * finds patches which are connected and share the same orientation
- * @param {Object} patchesFound
+ * @param patchesFound
  */
 function rasterizeAngularSimilarity(patchesFound) {
-    var label = 0,
-        threshold = 0.95,
-        currIdx = 0,
-        j,
-        patch,
-        hsv = [0, 1, 1],
-        rgb = [0, 0, 0];
+    const threshold = 0.95;
+    let label = 0;
+    const hsv = [0, 1, 1];
+    const rgb = [0, 0, 0];
 
     function notYetProcessed() {
-        var i;
-        for ( i = 0; i < _patchLabelGrid.data.length; i++) {
+        for (let i = 0; i < _patchLabelGrid.data.length; i++) {
             if (_patchLabelGrid.data[i] === 0 && _patchGrid.data[i] === 1) {
                 return i;
             }
         }
-        return _patchLabelGrid.length;
+        return _patchLabelGrid.data.length;
     }
 
-    function trace(currentIdx) {
-        var x,
-            y,
-            currentPatch,
-            idx,
-            dir,
-            current = {
-                x: currentIdx % _patchLabelGrid.size.x,
-                y: (currentIdx / _patchLabelGrid.size.x) | 0
-            },
-            similarity;
+    function trace(currentIndex) {
+        const current = {
+            x: currentIndex % _patchLabelGrid.size.x,
+            y: (currentIndex / _patchLabelGrid.size.x) | 0
+        };
 
-        if (currentIdx < _patchLabelGrid.data.length) {
-            currentPatch = _imageToPatchGrid.data[currentIdx];
+        if (currentIndex < _patchLabelGrid.data.length) {
+            const currentPatch = _imageToPatchGrid.data[currentIndex];
             // assign label
-            _patchLabelGrid.data[currentIdx] = label;
-            for ( dir = 0; dir < Tracer.searchDirections.length; dir++) {
-                y = current.y + Tracer.searchDirections[dir][0];
-                x = current.x + Tracer.searchDirections[dir][1];
-                idx = y * _patchLabelGrid.size.x + x;
+            _patchLabelGrid.data[currentIndex] = label;
+
+            SearchDirections.forEach(direction => {
+                const y = current.y + direction[0];
+                const x = current.x + direction[1];
+                const index = y * _patchLabelGrid.size.x + x;
 
                 // continue if patch empty
-                if (_patchGrid.data[idx] === 0) {
-                    _patchLabelGrid.data[idx] = Number.MAX_VALUE;
-                    continue;
-                }
-
-                if (_patchLabelGrid.data[idx] === 0) {
-                    similarity = Math.abs(vec2.dot(_imageToPatchGrid.data[idx].vec, currentPatch.vec));
+                if (_patchGrid.data[index] === 0) {
+                    _patchLabelGrid.data[index] = Number.MAX_VALUE;
+                } else if (_patchLabelGrid.data[index] === 0) {
+                    const patch = _imageToPatchGrid.data[index];
+                    const similarity = Math.abs(patch.x * currentPatch.x + patch.y * currentPatch.y);
                     if (similarity > threshold) {
-                        trace(idx);
+                        trace(index);
                     }
                 }
-            }
+            });
         }
     }
 
     // prepare for finding the right patches
-    ArrayHelper.init(_patchGrid.data, 0);
-    ArrayHelper.init(_patchLabelGrid.data, 0);
-    ArrayHelper.init(_imageToPatchGrid.data, null);
+    _patchGrid.data.fill(0);
+    _patchLabelGrid.data.fill(0);
+    _imageToPatchGrid.data.fill(null);
 
-    for ( j = 0; j < patchesFound.length; j++) {
-        patch = patchesFound[j];
+    patchesFound.forEach(patch => {
         _imageToPatchGrid.data[patch.index] = patch;
         _patchGrid.data[patch.index] = 1;
-    }
+    });
 
     // rasterize the patches found to determine area
     _patchGrid.zeroBorder();
 
-    while (( currIdx = notYetProcessed()) < _patchLabelGrid.data.length) {
+    let currentIndex = 0;
+    while ((currentIndex = notYetProcessed()) < _patchLabelGrid.data.length) {
         label++;
-        trace(currIdx);
+        trace(currentIndex);
     }
 
     // draw patch-labels if requested
-    if (ENV.development && _config.debug.showPatchLabels) {
-        for ( j = 0; j < _patchLabelGrid.data.length; j++) {
+    if (_config.debug && _config.debug.showPatchLabels) {
+        const context = _canvasContainer.ctx.binary;
+
+        for (let j = 0; j < _patchLabelGrid.data.length; j++) {
             if (_patchLabelGrid.data[j] > 0 && _patchLabelGrid.data[j] <= label) {
-                patch = _imageToPatchGrid.data[j];
+                const patch = _imageToPatchGrid.data[j];
                 hsv[0] = (_patchLabelGrid.data[j] / (label + 1)) * 360;
                 hsv2rgb(hsv, rgb);
-                ImageDebug.drawRect(patch.pos, _subImageWrapper.size, _canvasContainer.ctx.binary,
-                    {color: "rgb(" + rgb.join(",") + ")", lineWidth: 2});
+                const color = 'rgb(' + rgb.join(',') + ')';
+                ImageDebug.drawRect(patch.pos, _subImageWrapper.size, context, { color, lineWidth: 2 });
             }
         }
     }
@@ -526,7 +508,7 @@ function rasterizeAngularSimilarity(patchesFound) {
 }
 
 export default {
-    init: function(inputImageWrapper, config) {
+    init: (inputImageWrapper, config) => {
         _config = config;
         _inputImageWrapper = inputImageWrapper;
 
@@ -534,74 +516,65 @@ export default {
         initCanvas();
     },
 
-    locate: function() {
-        var patchesFound,
-            topLabels,
-            boxes;
-
+    locate: () => {
         if (_config.halfSample) {
             halfSample(_inputImageWrapper, _currentImageWrapper);
         }
 
         binarizeImage();
-        patchesFound = findPatches();
+        const patchesFound = findPatches();
         // return unless 5% or more patches are found
         if (patchesFound.length < _numPatches.x * _numPatches.y * 0.05) {
             return null;
         }
 
-        // rasterrize area by comparing angular similarity;
-        var maxLabel = rasterizeAngularSimilarity(patchesFound);
+        // rasterize area by comparing angular similarity;
+        const maxLabel = rasterizeAngularSimilarity(patchesFound);
         if (maxLabel < 1) {
             return null;
         }
 
         // search for area with the most patches (biggest connected area)
-        topLabels = findBiggestConnectedAreas(maxLabel);
+        const topLabels = findBiggestConnectedAreas(maxLabel);
         if (topLabels.length === 0) {
             return null;
         }
 
-        boxes = findBoxes(topLabels, maxLabel);
+        const boxes = findBoxes(topLabels, maxLabel);
         return boxes;
     },
 
-    checkImageConstraints: function(inputStream, config) {
-        var patchSize,
-            width = inputStream.getWidth(),
-            height = inputStream.getHeight(),
-            halfSample = config.halfSample ? 0.5 : 1,
-            size,
-            area;
+    checkImageConstraints: (inputStream, config) => {
+        let width = inputStream.getWidth();
+        let height = inputStream.getHeight();
+        const sample = config.halfSample ? 0.5 : 1;
 
         // calculate width and height based on area
         if (inputStream.getConfig().area) {
-            area = computeImageArea(width, height, inputStream.getConfig().area);
-            inputStream.setTopRight({x: area.sx, y: area.sy});
-            inputStream.setCanvasSize({x: width, y: height});
+            const area = computeImageArea(width, height, inputStream.getConfig().area);
+            inputStream.setTopRight({ x: area.sx, y: area.sy });
+            inputStream.setCanvasSize(width, height);
             width = area.sw;
             height = area.sh;
         }
 
-        size = {
-            x: Math.floor(width * halfSample),
-            y: Math.floor(height * halfSample)
+        const size = {
+            x: Math.floor(width * sample),
+            y: Math.floor(height * sample)
         };
 
-        patchSize = calculatePatchSize(config.patchSize, size);
+        const patchSize = calculatePatchSize(config.patchSize, size);
         if (ENV.development) {
-            console.log("Patch-Size: " + JSON.stringify(patchSize));
+            console.log('Patch-Size:', JSON.stringify(patchSize));
         }
 
-        inputStream.setWidth(Math.floor(Math.floor(size.x / patchSize.x) * (1 / halfSample) * patchSize.x));
-        inputStream.setHeight(Math.floor(Math.floor(size.y / patchSize.y) * (1 / halfSample) * patchSize.y));
+        inputStream.setWidth(Math.floor(Math.floor(size.x / patchSize.x) * (1 / sample) * patchSize.x));
+        inputStream.setHeight(Math.floor(Math.floor(size.y / patchSize.y) * (1 / sample) * patchSize.y));
 
         if ((inputStream.getWidth() % patchSize.x) === 0 && (inputStream.getHeight() % patchSize.y) === 0) {
             return true;
         }
 
-        throw new Error("Image dimensions do not comply with the current settings: Width (" +
-            width + " )and height (" + height +
-            ") must a multiple of " + patchSize.x);
+        throw new Error(`Image dimensions do not comply with the current settings: width (${width}) and height (${height}) must be a multiple of ${patchSize.x}`);
     }
 };

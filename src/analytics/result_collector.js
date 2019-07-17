@@ -1,57 +1,54 @@
-import ImageDebug from '../common/image_debug';
+import { ImageDebug } from '../common/image_debug';
 
-function contains(codeResult, list) {
-    if (list) {
-        return list.some(function (item) {
-            return Object.keys(item).every(function (key) {
-                return item[key] === codeResult[key];
-            });
+export class ResultCollector {
+    constructor(config) {
+        this._config = config;
+        this._canvas = document.createElement('canvas');
+        this._context = this._canvas.getContext('2d');
+        this._results = [];
+        this._capacity = config.capacity || 20;
+        this._capture = config.capture === true;
+    }
+
+    _contains(codeResult, list) {
+        return !!list && list.some(item => {
+            return Object.keys(item).every(key => item[key] === codeResult[key]);
         });
     }
-    return false;
-}
 
-function passesFilter(codeResult, filter) {
-    if (typeof filter === 'function') {
-        return filter(codeResult);
-    }
-    return true;
-}
-
-export default {
-    create: function(config) {
-        var canvas = document.createElement("canvas"),
-            ctx = canvas.getContext("2d"),
-            results = [],
-            capacity = config.capacity || 20,
-            capture = config.capture === true;
-
-        function matchesConstraints(codeResult) {
-            return capacity
-                && codeResult
-                && !contains(codeResult, config.blacklist)
-                && passesFilter(codeResult, config.filter);
+    _passesFilter(codeResult, filter) {
+        if (typeof filter === 'function') {
+            return filter(codeResult);
         }
-
-        return {
-            addResult: function(data, imageSize, codeResult) {
-                var result = {};
-
-                if (matchesConstraints(codeResult)) {
-                    capacity--;
-                    result.codeResult = codeResult;
-                    if (capture) {
-                        canvas.width = imageSize.x;
-                        canvas.height = imageSize.y;
-                        ImageDebug.drawImage(data, imageSize, ctx);
-                        result.frame = canvas.toDataURL();
-                    }
-                    results.push(result);
-                }
-            },
-            getResults: function() {
-                return results;
-            }
-        };
+        return true;
     }
-};
+
+    _matchesConstraints(codeResult) {
+        return codeResult
+            && this._capacity
+            && !this._contains(codeResult, this._config.blacklist)
+            && this._passesFilter(codeResult, this._config.filter);
+    }
+
+    addResult(data, imageWidth, imageHeight, codeResult) {
+        if (this._matchesConstraints(codeResult)) {
+            const result = {};
+
+            this._capacity--;
+            result.codeResult = codeResult;
+
+            if (this._capture) {
+                this._canvas.width = imageWidth;
+                this._canvas.height = imageHeight;
+                ImageDebug.drawImage(data, imageWidth, imageHeight, this._context);
+                result.frame = this._canvas.toDataURL();
+            }
+
+            this._results.push(result);
+        }
+    }
+
+    getResults() {
+        return this._results;
+    }
+}

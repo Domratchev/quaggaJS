@@ -1,24 +1,20 @@
-import EANReader from './ean_reader';
+import { EANReader } from './ean_reader';
 
-function UPCReader(opts, supplements) {
-    EANReader.call(this, opts, supplements);
-}
+export class UPCReader extends EANReader {
+    constructor(config, supplements) {
+        super(config, supplements);
 
-var properties = {
-    FORMAT: {value: "upc_a", writeable: false}
-};
-
-UPCReader.prototype = Object.create(EANReader.prototype, properties);
-UPCReader.prototype.constructor = UPCReader;
-
-UPCReader.prototype._decode = function() {
-    var result = EANReader.prototype._decode.call(this);
-
-    if (result && result.code && result.code.length === 13 && result.code.charAt(0) === "0") {
-        result.code = result.code.substring(1);
-        return result;
+        this._format = 'upc_a';
     }
-    return null;
-};
 
-export default UPCReader;
+    _decode() {
+        const result = super._decode();
+
+        if (result && result.code && result.code.length === 13 && result.code.charAt(0) === '0') {
+            result.code = result.code.substring(1);
+            return result;
+        }
+
+        return null;
+    }
+}

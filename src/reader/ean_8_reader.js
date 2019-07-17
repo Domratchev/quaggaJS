@@ -1,45 +1,41 @@
-import EANReader from './ean_reader';
+import { EANReader } from './ean_reader';
 
-function EAN8Reader(opts, supplements) {
-    EANReader.call(this, opts, supplements);
+export class EAN8Reader extends EANReader {
+    constructor(config, supplements) {
+        super(config, supplements);
+
+        this._format = 'ean_8';
+    }
+
+    _decodePayload(code, result, decodedCodes) {
+        for (let i = 0; i < 4; i++) {
+            code = this._decodeCode(code.end, this.CODE_G_START);
+            if (!code) {
+                return null;
+            }
+            result.push(code.code);
+            decodedCodes.push(code);
+        }
+
+        code = this._findPattern(this.MIDDLE_PATTERN, code.end, true, false);
+
+        if (code === null) {
+            return null;
+        }
+
+        decodedCodes.push(code);
+
+        for (let i = 0; i < 4; i++) {
+            code = this._decodeCode(code.end, this.CODE_G_START);
+
+            if (!code) {
+                return null;
+            }
+
+            decodedCodes.push(code);
+            result.push(code.code);
+        }
+
+        return code;
+    }
 }
-
-var properties = {
-    FORMAT: {value: "ean_8", writeable: false}
-};
-
-EAN8Reader.prototype = Object.create(EANReader.prototype, properties);
-EAN8Reader.prototype.constructor = EAN8Reader;
-
-EAN8Reader.prototype._decodePayload = function(code, result, decodedCodes) {
-    var i,
-        self = this;
-
-    for ( i = 0; i < 4; i++) {
-        code = self._decodeCode(code.end, self.CODE_G_START);
-        if (!code) {
-            return null;
-        }
-        result.push(code.code);
-        decodedCodes.push(code);
-    }
-
-    code = self._findPattern(self.MIDDLE_PATTERN, code.end, true, false);
-    if (code === null) {
-        return null;
-    }
-    decodedCodes.push(code);
-
-    for ( i = 0; i < 4; i++) {
-        code = self._decodeCode(code.end, self.CODE_G_START);
-        if (!code) {
-            return null;
-        }
-        decodedCodes.push(code);
-        result.push(code.code);
-    }
-
-    return code;
-};
-
-export default EAN8Reader;

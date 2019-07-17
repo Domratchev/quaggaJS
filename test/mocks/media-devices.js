@@ -1,21 +1,21 @@
 
-let devices = [],
-    stream,
-    _constraints,
-    _supported = true;
+let devices = [];
+let stream;
+let _constraints;
+let _supported = true;
 
 export function enumerateDevices() {
-    console.log("enumerateDevices!!!!");
+    console.log('enumerateDevices!!!!');
     return Promise.resolve(devices);
-};
+}
 
 export function getUserMedia(constraints) {
-    console.log("getUserMedia!!!!");
+    console.log('getUserMedia!!!!');
     _constraints = constraints;
     if (_supported) {
         return Promise.resolve(stream);
     }
-    return Promise.reject(new Error("das"));
+    return Promise.reject(new Error('das'));
 }
 
 export function setDevices(newDevices) {
@@ -31,6 +31,6 @@ export function getConstraints() {
 }
 
 export function setSupported(supported) {
-    console.log("Supported: " + supported);
+    console.log('Supported:', supported);
     _supported = supported;
 }

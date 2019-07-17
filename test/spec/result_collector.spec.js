@@ -1,106 +1,123 @@
-import ResultCollector from '../../src/analytics/result_collector';
-import ImageDebug from '../../src/common/image_debug';
+import { ResultCollector } from '../../src/analytics/result_collector';
+import { ImageDebug } from '../../src/common/image_debug';
 
-var canvasMock,
-    imageSize,
-    config;
+describe('resultCollector', () => {
+    let imageWidth;
+    let imageHeight;
+    let config;
 
-
-describe("resultCollector", () => {
-    beforeEach(function() {
-        imageSize = {x: 320, y: 240};
+    beforeEach(() => {
+        imageWidth = 320;
+        imageHeight = 240;
         config = {
             capture: true,
             capacity: 20,
-            blacklist: [{code: "3574660239843", format: "ean_13"}],
-            filter: function() {
+            blacklist: [{ code: '3574660239843', format: 'ean_13' }],
+            filter: () => {
                 return true;
             }
         };
-        canvasMock = {
-            getContext: function() {
+        const canvasMock = {
+            getContext: () => {
                 return {};
             },
             toDataURL: sinon.spy(),
             width: 0,
             height: 0
         };
-        sinon.stub(document, "createElement", function(type) {
-            if (type === "canvas") {
+        sinon.stub(document, 'createElement').callsFake(type => {
+            if (type === 'canvas') {
                 return canvasMock;
             }
+            return null;
         });
     });
 
-    afterEach(function() {
+    afterEach(() => {
         document.createElement.restore();
     });
 
-
-    describe('create', function () {
-        it("should return a new collector", function() {
-            ResultCollector.create(config);
-            expect(document.createElement.calledOnce).to.be.equal(true);
-            expect(document.createElement.getCall(0).args[0]).to.equal("canvas");
+    describe('constructor', () => {
+        it('should return a new collector', () => {
+            const collector = new ResultCollector(config);
+            expect(document.createElement.calledOnce).to.equal(true);
+            expect(document.createElement.getCall(0).args[0]).to.equal('canvas');
         });
     });
 
-    describe('addResult', function() {
-        beforeEach(function() {
-            sinon.stub(ImageDebug, "drawImage", function() {});
+    describe('addResult', () => {
+        beforeEach(() => {
+            sinon.stub(ImageDebug, 'drawImage').callsFake(() => { });
         });
 
-        afterEach(function() {
+        afterEach(() => {
             ImageDebug.drawImage.restore();
         });
 
-        it("should not add result if capacity is full", function(){
+        it('should not add result if capacity is full', () => {
             config.capacity = 1;
-            var collector = ResultCollector.create(config);
-            collector.addResult([], imageSize, {});
-            collector.addResult([], imageSize, {});
-            collector.addResult([], imageSize, {});
+            const collector = new ResultCollector(config);
+            collector.addResult([], imageWidth, imageHeight, {});
+            collector.addResult([], imageWidth, imageHeight, {});
+            collector.addResult([], imageWidth, imageHeight, {});
             expect(collector.getResults()).to.have.length(1);
         });
 
-        it("should only add results which match constraints", function(){
-            var collector = ResultCollector.create(config),
-                results;
+        it('should only add results which match constraints', () => {
+            const collector = new ResultCollector(config);
 
-            collector.addResult([], imageSize, {code: "423423443", format: "ean_13"});
-            collector.addResult([], imageSize, {code: "3574660239843", format: "ean_13"});
-            collector.addResult([], imageSize, {code: "3574660239843", format: "code_128"});
+            collector.addResult([], imageWidth, imageHeight, {
+                code: '423423443',
+                format: 'ean_13'
+            });
+            collector.addResult([], imageWidth, imageHeight, {
+                code: '3574660239843',
+                format: 'ean_13'
+            });
+            collector.addResult([], imageWidth, imageHeight, {
+                code: '3574660239843',
+                format: 'code_128'
+            });
 
-            results = collector.getResults();
+            const results = collector.getResults();
             expect(results).to.have.length(2);
 
-            results.forEach(function(result) {
+            results.forEach(result => {
                 expect(result).not.to.deep.equal(config.blacklist[0]);
             });
         });
 
-        it("should add result if no filter is set", function() {
+        it('should add result if no filter is set', () => {
             delete config.filter;
-            var collector = ResultCollector.create(config);
+            const collector = new ResultCollector(config);
 
-            collector.addResult([], imageSize, {code: "423423443", format: "ean_13"});
+            collector.addResult([], imageWidth, imageHeight, {
+                code: '423423443',
+                format: 'ean_13'
+            });
             expect(collector.getResults()).to.have.length(1);
         });
 
-        it("should not add results if filter returns false", function() {
-            config.filter = () => (false);
-            var collector = ResultCollector.create(config);
+        it('should not add results if filter returns false', () => {
+            config.filter = () => false;
+            const collector = new ResultCollector(config);
 
-            collector.addResult([], imageSize, {code: "423423443", format: "ean_13"});
+            collector.addResult([], imageWidth, imageHeight, {
+                code: '423423443',
+                format: 'ean_13'
+            });
             expect(collector.getResults()).to.have.length(0);
         });
 
-        it("should add result if no blacklist is set", function() {
+        it('should add result if no blacklist is set', () => {
             delete config.blacklist;
-            var collector = ResultCollector.create(config);
+            const collector = new ResultCollector(config);
 
-            collector.addResult([], imageSize, {code: "3574660239843", format: "ean_13"});
+            collector.addResult([], imageWidth, imageHeight, {
+                code: '3574660239843',
+                format: 'ean_13'
+            });
             expect(collector.getResults()).to.have.length(1);
         });
     });
-})
+});

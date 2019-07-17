@@ -1,71 +1,59 @@
-import {findTagsInObjectURL} from './exif_helper';
+import { findTagsInObjectURL } from './exif_helper';
 
-var ImageLoader = {};
-ImageLoader.load = function(directory, callback, offset, size, sequence) {
-    var htmlImagesSrcArray = new Array(size),
-        htmlImagesArray = new Array(htmlImagesSrcArray.length),
-        i,
-        img,
-        num;
+export class ImageLoader {
+    static async load(directory, callback, offset, size, sequence) {
+        const htmlImagesSrcArray = new Array(size);
+        const htmlImagesArray = new Array(size);
 
-    if (sequence === false) {
-        htmlImagesSrcArray[0] = directory;
-    } else {
-        for ( i = 0; i < htmlImagesSrcArray.length; i++) {
-            num = (offset + i);
-            htmlImagesSrcArray[i] = directory + "image-" + ("00" + num).slice(-3) + ".jpg";
-        }
-    }
-    htmlImagesArray.notLoaded = [];
-    htmlImagesArray.addImage = function(image) {
-        htmlImagesArray.notLoaded.push(image);
-    };
-    htmlImagesArray.loaded = function(loadedImg) {
-        var notloadedImgs = htmlImagesArray.notLoaded;
-        for (var x = 0; x < notloadedImgs.length; x++) {
-            if (notloadedImgs[x] === loadedImg) {
-                notloadedImgs.splice(x, 1);
-                for (var y = 0; y < htmlImagesSrcArray.length; y++) {
-                    var imgName = htmlImagesSrcArray[y].substr(htmlImagesSrcArray[y].lastIndexOf("/"));
-                    if (loadedImg.src.lastIndexOf(imgName) !== -1) {
-                        htmlImagesArray[y] = {img: loadedImg};
-                        break;
+        async function loaded(loadedImage) {
+            const notLoadedImages = htmlImagesArray.notLoaded;
+            for (let x = 0; x < notLoadedImages.length; x++) {
+                if (notLoadedImages[x] === loadedImage) {
+                    notLoadedImages.splice(x, 1);
+                    for (let y = 0; y < htmlImagesSrcArray.length; y++) {
+                        const imageName = htmlImagesSrcArray[y].substr(htmlImagesSrcArray[y].lastIndexOf('/'));
+                        if (loadedImage.src.lastIndexOf(imageName) !== -1) {
+                            htmlImagesArray[y] = { image: loadedImage };
+                            break;
+                        }
                     }
+                    break;
                 }
-                break;
+            }
+            if (notLoadedImages.length === 0) {
+                if (ENV.development) {
+                    console.log('Images loaded');
+                }
+                try {
+                    if (sequence === false) {
+                        const firstImage = htmlImagesArray[0];
+                        firstImage.tags = await findTagsInObjectURL(directory);
+                    }
+                } catch (ex) {
+                    console.log(ex);
+                } finally {
+                    callback(htmlImagesArray);
+                }
             }
         }
-        if (notloadedImgs.length === 0) {
-            if (ENV.development) {
-                console.log("Images loaded");
-            }
-            if (sequence === false) {
-                findTagsInObjectURL(directory, ['orientation'])
-                    .then(tags => {
-                        htmlImagesArray[0].tags = tags;
-                        callback(htmlImagesArray);
-                    }).catch(e => {
-                        console.log(e);
-                        callback(htmlImagesArray);
-                    });
-            } else {
-                callback(htmlImagesArray);
-            }
-        }
-    };
 
-    for ( i = 0; i < htmlImagesSrcArray.length; i++) {
-        img = new Image();
-        htmlImagesArray.addImage(img);
-        addOnloadHandler(img, htmlImagesArray);
-        img.src = htmlImagesSrcArray[i];
+        if (sequence === false) {
+            htmlImagesSrcArray[0] = directory;
+        } else {
+            for (let i = 0; i < size; i++) {
+                const num = (offset + i);
+                htmlImagesSrcArray[i] = directory + 'image-' + ('00' + num).slice(-3) + '.jpg';
+            }
+        }
+        htmlImagesArray.notLoaded = [];
+        htmlImagesArray.addImage = function (image) {
+            htmlImagesArray.notLoaded.push(image);
+        };
+        for (let i = 0; i < htmlImagesSrcArray.length; i++) {
+            const image = new Image();
+            htmlImagesArray.addImage(image);
+            image.onload = () => loaded(image);
+            image.src = htmlImagesSrcArray[i];
+        }
     }
-};
-
-function addOnloadHandler(img, htmlImagesArray) {
-    img.onload = function() {
-        htmlImagesArray.loaded(this);
-    };
 }
-
-export default (ImageLoader);

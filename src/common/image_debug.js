@@ -1,41 +1,42 @@
-export default {
-    drawRect: function(pos, size, ctx, style){
-        ctx.strokeStyle = style.color;
-        ctx.fillStyle = style.color;
-        ctx.lineWidth = style.lineWidth || 1;
-        ctx.beginPath();
-        ctx.strokeRect(pos.x, pos.y, size.x, size.y);
-    },
-    drawPath: function(path, def, ctx, style) {
-        ctx.strokeStyle = style.color;
-        ctx.fillStyle = style.color;
-        ctx.lineWidth = style.lineWidth;
-        ctx.beginPath();
-        ctx.moveTo(path[0][def.x], path[0][def.y]);
-        for (var j = 1; j < path.length; j++) {
-            ctx.lineTo(path[j][def.x], path[j][def.y]);
+export class ImageDebug {
+    static drawRect(pos, size, context, style) {
+        context.strokeStyle = style.color;
+        context.fillStyle = style.color;
+        context.lineWidth = style.lineWidth || 1;
+        context.beginPath();
+        context.strokeRect(pos.x, pos.y, size.x, size.y);
+    }
+
+    static drawPath(path, def, context, style) {
+        context.strokeStyle = style.color;
+        context.fillStyle = style.color;
+        context.lineWidth = style.lineWidth;
+        context.beginPath();
+        context.moveTo(path[0][def.x], path[0][def.y]);
+        for (let j = 1; j < path.length; j++) {
+            context.lineTo(path[j][def.x], path[j][def.y]);
         }
-        ctx.closePath();
-        ctx.stroke();
-    },
-    drawImage: function(imageData, size, ctx) {
-        var canvasData = ctx.getImageData(0, 0, size.x, size.y),
-            data = canvasData.data,
-            imageDataPos = imageData.length,
-            canvasDataPos = data.length,
-            value;
+        context.closePath();
+        context.stroke();
+    }
+
+    static drawImage(imageData, width, height, context) {
+        const canvasData = context.getImageData(0, 0, width, height);
+        const data = canvasData.data;
+        let imageDataPos = imageData.length;
+        let canvasDataPos = data.length;
 
         if (canvasDataPos / imageDataPos !== 4) {
             return false;
         }
-        while (imageDataPos--){
-            value = imageData[imageDataPos];
+        while (imageDataPos--) {
+            const value = imageData[imageDataPos];
             data[--canvasDataPos] = 255;
             data[--canvasDataPos] = value;
             data[--canvasDataPos] = value;
             data[--canvasDataPos] = value;
         }
-        ctx.putImageData(canvasData, 0, 0);
+        context.putImageData(canvasData, 0, 0);
         return true;
     }
-};
+}

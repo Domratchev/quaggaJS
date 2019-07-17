@@ -1,0 +1,23 @@
+{
+    "compilerOptions": {
+        // "allowJs": true,
+        "declaration": true,
+        // "isolatedModules": true,
+        "module": "commonjs",
+        "outDir": "dist",
+        "pretty": true,
+        // "strict": true,
+        "target": "esnext"
+    },
+    "include": [
+        "src"
+    ],
+    "paths": {
+        "Common": [
+            "src/common/"
+        ],
+        "Input": [
+            "src/input/"
+        ]
+    }
+}
