@@ -6,7 +6,7 @@ const ExifTags = { 0x0112: 'orientation' };
 export const AvailableTags = Object.keys(ExifTags).map(key => ExifTags[key]);
 
 export async function findTagsInObjectURL(src, tags = AvailableTags) {
-    if (/^blob\:/i.test(src)) {
+    if (/^blob:/i.test(src)) {
         const buffer = await objectURLToBlob(src);
         return findTagsInBuffer(buffer, tags);
     }
@@ -41,6 +41,8 @@ export function findTagsInBuffer(file, selectedTags = AvailableTags) {
             offset += 2 + dataView.getUint16(offset + 2);
         }
     }
+
+    return false;
 }
 
 async function objectURLToBlob(url) {
@@ -49,81 +51,55 @@ async function objectURLToBlob(url) {
         return response.arrayBuffer();
     }
     throw new Error('HTTP Error', response.status);
-    // return new Promise((resolve, reject) => {
-    //     const http = new XMLHttpRequest();
-    //     http.open('GET', url, true);
-    //     http.responseType = 'blob';
-    //     http.onreadystatechange = () => {
-    //         if (http.readyState === XMLHttpRequest.DONE && (http.status === 200 || http.status === 0)) {
-    //             resolve(http.response);
-    //         }
-    //     };
-    //     http.onerror = reject;
-    //     http.send();
-    // });
 }
 
-function readEXIFData(file, start, exifTags) {
-    if (getStringFromBuffer(file, start, 4) !== 'Exif') {
+function readEXIFData(dataView, start, exifTags) {
+    if ('Exif'.split().some((char, index) => dataView.getUint8(start + index) !== char.charCodeAt(0))) {
         return false;
     }
 
     const tiffOffset = start + 6;
     let bigEnd;
 
-    if (file.getUint16(tiffOffset) === 0x4949) {
+    if (dataView.getUint16(tiffOffset) === 0x4949) {
         bigEnd = false;
-    } else if (file.getUint16(tiffOffset) === 0x4D4D) {
+    } else if (dataView.getUint16(tiffOffset) === 0x4D4D) {
         bigEnd = true;
     } else {
         return false;
     }
 
-    if (file.getUint16(tiffOffset + 2, !bigEnd) !== 0x002A) {
+    if (dataView.getUint16(tiffOffset + 2, !bigEnd) !== 0x002A) {
         return false;
     }
 
-    const firstIFDOffset = file.getUint32(tiffOffset + 4, !bigEnd);
+    const firstIFDOffset = dataView.getUint32(tiffOffset + 4, !bigEnd);
     if (firstIFDOffset < 0x00000008) {
         return false;
     }
 
-    const tags = readTags(file, tiffOffset + firstIFDOffset, exifTags, bigEnd);
+    const tags = readTags(dataView, tiffOffset + firstIFDOffset, exifTags, bigEnd);
     return tags;
 }
 
-function readTags(file, dirStart, strings, bigEnd) {
-    const entries = file.getUint16(dirStart, !bigEnd);
+function readTags(dataView, dirStart, strings, bigEnd) {
+    const entries = dataView.getUint16(dirStart, !bigEnd);
     const tags = {};
 
     for (let i = 0; i < entries; i++) {
         const entryOffset = dirStart + i * 12 + 2;
-        const tag = strings[file.getUint16(entryOffset, !bigEnd)];
+        const tag = strings[dataView.getUint16(entryOffset, !bigEnd)];
         if (tag) {
-            tags[tag] = readTagValue(file, entryOffset, bigEnd);
+            tags[tag] = readTagValue(dataView, entryOffset, bigEnd);
         }
     }
 
     return tags;
 }
 
-function readTagValue(file, entryOffset, bigEnd) {
-    const type = file.getUint16(entryOffset + 2, !bigEnd);
-    const numValues = file.getUint32(entryOffset + 4, !bigEnd);
+function readTagValue(dataView, entryOffset, bigEnd) {
+    const type = dataView.getUint16(entryOffset + 2, !bigEnd);
+    const numValues = dataView.getUint32(entryOffset + 4, !bigEnd);
 
-    switch (type) {
-        case 3: {
-            if (numValues === 1) {
-                return file.getUint16(entryOffset + 8, !bigEnd);
-            }
-        }
-    }
-}
-
-function getStringFromBuffer(buffer, start, length) {
-    let outstr = '';
-    for (let n = start; n < start + length; n++) {
-        outstr += String.fromCharCode(buffer.getUint8(n));
-    }
-    return outstr;
+    return type === 3 && numValues === 1 ? dataView.getUint16(entryOffset + 8, !bigEnd) : undefined;
 }

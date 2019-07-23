@@ -4,12 +4,12 @@ import Events from './common/events';
 import { ImageDebug } from './common/image_debug';
 import { ImageWrapper } from './common/image_wrapper';
 import { merge } from './common/merge';
-import Config from './config/config';
+import { config } from './config/config';
 import { BarcodeDecoder } from './decoder/barcode_decoder';
 import CameraAccess from './input/camera_access';
+import { FrameGrabber } from './input/frame_grabber';
+import { InputStream } from './input/input_stream';
 import BarcodeLocator from './locator/barcode_locator';
-import { FrameGrabber } from 'Input/frame_grabber';
-import { InputStream } from 'Input/input_stream';
 
 let _inputStream;
 let _framegrabber;
@@ -95,13 +95,13 @@ function ready(cb) {
 
 function initCanvas() {
     if (typeof document !== 'undefined') {
-        const $viewport = getViewPort();
+        const viewport = getViewPort();
         _canvasContainer.dom.image = document.querySelector('canvas.imgBuffer');
         if (!_canvasContainer.dom.image) {
             _canvasContainer.dom.image = document.createElement('canvas');
             _canvasContainer.dom.image.className = 'imgBuffer';
-            if ($viewport && _config.inputStream.type === 'ImageStream') {
-                $viewport.appendChild(_canvasContainer.dom.image);
+            if (viewport && _config.inputStream.type === 'ImageStream') {
+                viewport.appendChild(_canvasContainer.dom.image);
             }
         }
         _canvasContainer.ctx.image = _canvasContainer.dom.image.getContext('2d');
@@ -112,13 +112,13 @@ function initCanvas() {
         if (!_canvasContainer.dom.overlay) {
             _canvasContainer.dom.overlay = document.createElement('canvas');
             _canvasContainer.dom.overlay.className = 'drawingBuffer';
-            if ($viewport) {
-                $viewport.appendChild(_canvasContainer.dom.overlay);
+            if (viewport) {
+                viewport.appendChild(_canvasContainer.dom.overlay);
             }
             const clearFix = document.createElement('br');
             clearFix.setAttribute('clear', 'all');
-            if ($viewport) {
-                $viewport.appendChild(clearFix);
+            if (viewport) {
+                viewport.appendChild(clearFix);
             }
         }
         _canvasContainer.ctx.overlay = _canvasContainer.dom.overlay.getContext('2d');
@@ -137,7 +137,7 @@ function initBuffers(imageWrapper) {
         });
     }
 
-    if (ENV.development) {
+    if (process.env.NODE_ENV !== 'production') {
         console.log(_inputImageWrapper.size);
     }
     _boxSize = [
@@ -193,7 +193,11 @@ function addResult(result, imageData, canvasWidth, canvasHeight) {
     }
 
     if (result.barcodes) {
-        result.barcodes.filter(barcode => barcode.codeResult).forEach(barcode => addResult(barcode, imageData, canvasWidth, canvasHeight));
+        result.barcodes.forEach(barcode => {
+            if (barcode.codeResult) {
+                addResult(barcode, imageData, canvasWidth, canvasHeight);
+            }
+        });
     } else if (result.codeResult) {
         _resultCollector.addResult(imageData, canvasWidth, canvasHeight, result.codeResult);
     }
@@ -290,7 +294,7 @@ function start() {
     }
 }
 
-function initWorker(cb) {
+function initWorker(callback) {
     const blobURL = generateWorkerBlob();
     const workerThread = {
         worker: new Worker(blobURL),
@@ -303,16 +307,16 @@ function initWorker(cb) {
             URL.revokeObjectURL(blobURL);
             workerThread.busy = false;
             workerThread.imageData = new Uint8Array(ev.data.imageData);
-            if (ENV.development) {
+            if (process.env.NODE_ENV !== 'production') {
                 console.log('Worker initialized');
             }
-            return cb(workerThread);
+            callback(workerThread);
         } else if (ev.data.event === 'processed') {
             workerThread.imageData = new Uint8Array(ev.data.imageData);
             workerThread.busy = false;
             publishResult(ev.data.result, workerThread.imageData);
         } else if (ev.data.event === 'error') {
-            if (ENV.development) {
+            if (process.env.NODE_ENV !== 'production') {
                 console.log('Worker error:', ev.data.message);
             }
         }
@@ -326,8 +330,8 @@ function initWorker(cb) {
     }, [workerThread.imageData.buffer]);
 }
 
-function configForWorker(config) {
-    return merge(config, { inputStream: { target: null } });
+function configForWorker(cfg) {
+    return merge(cfg, { inputStream: { target: null } });
 }
 
 function workerInterface(factory) {
@@ -344,13 +348,13 @@ function workerInterface(factory) {
 
     self.onmessage = function (e) {
         if (e.data.cmd === 'init') {
-            const config = e.data.config;
-            config.numOfWorkers = 0;
+            const cfg = e.data.config;
+            cfg.numOfWorkers = 0;
             imageWrapper = new Quagga.ImageWrapper({
                 x: e.data.size.x,
                 y: e.data.size.y
             }, new Uint8Array(e.data.imageData));
-            Quagga.init(config, ready, imageWrapper);
+            Quagga.init(cfg, ready, imageWrapper);
             Quagga.onProcessed(onProcessed);
         } else if (e.data.cmd === 'process') {
             imageWrapper.data = new Uint8Array(e.data.imageData);
@@ -394,48 +398,58 @@ function setReaders(readers) {
     if (_decoder) {
         _decoder.setReaders(readers);
     } else if (_onUIThread && _workerPool.length > 0) {
-        _workerPool.forEach(workerThread => workerThread.worker.postMessage({ cmd: 'setReaders', readers: readers }));
+        _workerPool.forEach(({ worker }) => worker.postMessage({ cmd: 'setReaders', readers }));
     }
 }
 
-function adjustWorkerPool(capacity, cb) {
+function adjustWorkerPool(capacity, callback) {
     const increaseBy = capacity - _workerPool.length;
+
     if (increaseBy === 0) {
-        return cb && cb();
+        if (callback) {
+            callback();
+        }
+        return;
     }
+
     if (increaseBy < 0) {
         const workersToTerminate = _workerPool.slice(increaseBy);
-        workersToTerminate.forEach(function (workerThread) {
-            workerThread.worker.terminate();
-            if (ENV.development) {
+        workersToTerminate.forEach(({ worker }) => {
+            worker.terminate();
+            if (process.env.NODE_ENV !== 'production') {
                 console.log('Worker terminated!');
             }
         });
         _workerPool = _workerPool.slice(0, increaseBy);
-        return cb && cb();
+
+        if (callback) {
+            callback();
+        }
     } else {
         for (let i = 0; i < increaseBy; i++) {
-            initWorker(workerInitialized);
-        }
+            initWorker(workerThread => {
+                _workerPool.push(workerThread);
 
-        function workerInitialized(workerThread) {
-            _workerPool.push(workerThread);
-            if (_workerPool.length >= capacity) {
-                cb && cb();
-            }
+                if (_workerPool.length >= capacity && callback) {
+                    callback();
+                }
+            });
         }
     }
 }
 
 export default {
-    init: function (config, cb, imageWrapper) {
-        _config = merge(Config, config);
+    init: function (cfg, callback, imageWrapper) {
+        _config = merge(config, cfg);
         if (imageWrapper) {
             _onUIThread = false;
             initializeData(imageWrapper);
-            return cb();
+
+            if (callback) {
+                callback();
+            }
         } else {
-            initInputStream(cb);
+            initInputStream(callback);
         }
     },
     start: function () {
@@ -473,21 +487,21 @@ export default {
         }
     },
     canvas: _canvasContainer,
-    decodeSingle: function (config, resultCallback) {
-        config = merge({
+    decodeSingle: function (cfg, resultCallback) {
+        cfg = merge({
             inputStream: {
                 type: 'ImageStream',
                 sequence: false,
                 size: 800,
-                src: config.src
+                src: cfg.src
             },
-            numOfWorkers: (ENV.development && config.debug) ? 0 : 1,
+            numOfWorkers: (process.env.NODE_ENV !== 'production' && cfg.debug) ? 0 : 1,
             locator: {
                 halfSample: false
             }
-        }, config);
+        }, cfg);
 
-        this.init(config, () => {
+        this.init(cfg, () => {
             Events.once('processed', result => {
                 this.stop();
                 resultCallback.call(null, result);

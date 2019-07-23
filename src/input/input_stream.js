@@ -16,13 +16,10 @@ export class InputStream {
             const width = video.videoWidth;
             const height = video.videoHeight;
 
-            _calculatedWidth =
-                _config.size ? width / height > 1 ? _config.size : Math.floor((width / height) * _config.size) : width;
-            _calculatedHeight =
-                _config.size ? width / height > 1 ? Math.floor((height / width) * _config.size) : _config.size : height;
-
-            _canvasWidth = _calculatedWidth;
-            _canvasHeight = _calculatedHeight;
+            _canvasWidth = _calculatedWidth =
+                _config.size ? width > height ? _config.size : width * _config.size / height | 0 : width;
+            _canvasHeight = _calculatedHeight =
+                _config.size ? width > height ? height * _config.size / width | 0 : _config.size : height;
         }
 
         that.getRealWidth = function () {
@@ -192,10 +189,10 @@ export class InputStream {
                     }
                 }
 
-                _calculatedWidth = _canvasWidth = _config.size ?
-                    width / height > 1 ? _config.size : Math.floor((width / height) * _config.size) : width;
-                _calculatedHeight = _canvasHeight = _config.size ?
-                    width / height > 1 ? Math.floor((height / width) * _config.size) : _config.size : height;
+                _canvasWidth = _calculatedWidth =
+                    _config.size ? width > height ? _config.size : width * _config.size / height | 0 : width;
+                _canvasHeight = _calculatedHeight =
+                    _config.size ? width > height ? height * _config.size / width | 0 : _config.size : height;
                 loaded = true;
                 frameIndex = 0;
                 setTimeout(() => publishEvent('canrecord', []), 0);
@@ -238,14 +235,14 @@ export class InputStream {
             return height;
         };
 
-        that.setInputStream = function (stream) {
-            _config = stream;
-            if (stream.sequence === false) {
-                baseUrl = stream.src;
+        that.setInputStream = function (config) {
+            _config = config;
+            if (config.sequence === false) {
+                baseUrl = config.src;
                 size = 1;
             } else {
-                baseUrl = stream.src;
-                size = stream.length;
+                baseUrl = config.src;
+                size = config.length;
             }
             loadImages();
         };

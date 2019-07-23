@@ -1,16 +1,16 @@
-import { getUserMedia, enumerateDevices } from 'Common/media-devices';
+import { getUserMedia, enumerateDevices } from '../common/media-devices';
 
-let streamRef;
+let _stream;
 
-function waitForVideo(video) {
+function waitForVideo({ videoWidth, videoHeight }) {
     return new Promise((resolve, reject) => {
         let attempts = 10;
 
         function checkVideo() {
             if (attempts > 0) {
-                if (video.videoWidth > 10 && video.videoHeight > 10) {
-                    if (ENV.development) {
-                        console.log(`${video.videoWidth}px x ${video.videoHeight}px`);
+                if (videoWidth > 10 && videoHeight > 10) {
+                    if (process.env.NODE_ENV !== 'production') {
+                        console.log(`${videoWidth}px x ${videoHeight}px`);
                     }
                     resolve();
                 } else {
@@ -33,9 +33,9 @@ function waitForVideo(video) {
  */
 function initCamera(video, constraints) {
     return getUserMedia(constraints)
-        .then((stream) => {
-            return new Promise((resolve) => {
-                streamRef = stream;
+        .then(stream => {
+            return new Promise(resolve => {
+                _stream = stream;
                 video.setAttribute('autoplay', true);
                 video.setAttribute('muted', true);
                 video.setAttribute('playsinline', true);
@@ -79,30 +79,28 @@ export function pickConstraints(videoConstraints) {
 }
 
 function enumerateVideoDevices() {
-    return enumerateDevices()
-        .then(devices => devices.filter(device => device.kind === 'videoinput'));
+    return enumerateDevices().then(devices => devices.filter(({ kind }) => kind === 'videoinput'));
 }
 
 function getActiveTrack() {
-    if (streamRef) {
-        const tracks = streamRef.getVideoTracks();
-        if (tracks && tracks.length) {
-            return tracks[0];
-        }
+    const tracks = _stream && _stream.getVideoTracks();
+    if (tracks && tracks.length) {
+        return tracks[0];
     }
+
+    return null;
 }
 
 export default {
     request: function (video, videoConstraints) {
-        return pickConstraints(videoConstraints)
-            .then(initCamera.bind(null, video));
+        return pickConstraints(videoConstraints).then(initCamera.bind(null, video));
     },
     release: function () {
-        const tracks = streamRef && streamRef.getVideoTracks();
+        const tracks = _stream && _stream.getVideoTracks();
         if (tracks && tracks.length) {
             tracks[0].stop();
         }
-        streamRef = null;
+        _stream = null;
     },
     enumerateVideoDevices,
     getActiveStreamLabel: function () {

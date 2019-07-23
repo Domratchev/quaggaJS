@@ -101,7 +101,7 @@ export class TwoOfFiveReader extends BarcodeReader {
             if (!startInfo) {
                 return null;
             }
-            narrowBarWidth = Math.floor((startInfo.end - startInfo.start) / startPatternLength);
+            narrowBarWidth = (startInfo.end - startInfo.start) / startPatternLength | 0;
             const leadingWhitespaceStart = startInfo.start - narrowBarWidth * 5;
             if (leadingWhitespaceStart >= 0) {
                 if (this._matchRange(leadingWhitespaceStart, startInfo.start, 0)) {
@@ -111,15 +111,19 @@ export class TwoOfFiveReader extends BarcodeReader {
             offset = startInfo.end;
             startInfo = null;
         }
+
+        return null;
     }
 
     _verifyTrailingWhitespace(endInfo) {
-        const trailingWhitespaceEnd = endInfo.end + ((endInfo.end - endInfo.start) / 2);
+        const trailingWhitespaceEnd = endInfo.end + (endInfo.end - endInfo.start) / 2;
+
         if (trailingWhitespaceEnd < this._row.length) {
             if (this._matchRange(endInfo.end, trailingWhitespaceEnd, 0)) {
                 return endInfo;
             }
         }
+
         return null;
     }
 
@@ -159,9 +163,7 @@ export class TwoOfFiveReader extends BarcodeReader {
             }
         }
 
-        if (bestMatch.error < this.AVERAGE_CODE_ERROR) {
-            return bestMatch;
-        }
+        return bestMatch.error < this.AVERAGE_CODE_ERROR ? bestMatch : null;
     }
 
     _decodePayload(counters, result, decodedCodes) {

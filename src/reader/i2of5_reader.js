@@ -126,15 +126,14 @@ export class I2of5Reader extends BarcodeReader {
     _findStart() {
         let offset = this._nextSet(this._row);
         let startInfo;
-        let narrowBarWidth = 1;
 
         while (!startInfo) {
             startInfo = this._findPattern(START_PATTERN, offset, false, true);
             if (!startInfo) {
                 return null;
             }
-            narrowBarWidth = Math.floor((startInfo.end - startInfo.start) / 4);
 
+            const narrowBarWidth = (startInfo.end - startInfo.start) >> 2;
             const leadingWhitespaceStart = startInfo.start - narrowBarWidth * 10;
 
             if (leadingWhitespaceStart >= 0) {
@@ -146,10 +145,12 @@ export class I2of5Reader extends BarcodeReader {
             offset = startInfo.end;
             startInfo = null;
         }
+
+        return null;
     }
 
     _verifyTrailingWhitespace(endInfo) {
-        const trailingWhitespaceEnd = endInfo.end + ((endInfo.end - endInfo.start) / 2);
+        const trailingWhitespaceEnd = endInfo.end + (endInfo.end - endInfo.start) / 2;
 
         if (trailingWhitespaceEnd < this._row.length) {
             if (this._matchRange(endInfo.end, trailingWhitespaceEnd, 0)) {
@@ -194,7 +195,6 @@ export class I2of5Reader extends BarcodeReader {
     }
 
     _decodeCode(counter) {
-        const epsilon = this.AVERAGE_CODE_ERROR;
         const bestMatch = {
             error: Number.MAX_VALUE,
             code: -1,
@@ -210,9 +210,7 @@ export class I2of5Reader extends BarcodeReader {
             }
         }
 
-        if (bestMatch.error < epsilon) {
-            return bestMatch;
-        }
+        return bestMatch.error < this.AVERAGE_CODE_ERROR ? bestMatch : null;
     }
 
     _decodePayload(counters, result, decodedCodes) {

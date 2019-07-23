@@ -14,10 +14,10 @@ export class FrameGrabber {
         this._canvas = canvas || document.createElement('canvas');
         this._canvas.width = this._canvasWidth;
         this._canvas.height = this._canvasHeight;
-        this._ctx = this._canvas.getContext('2d');
+        this._context = this._canvas.getContext('2d');
         this._data = new Uint8Array(this._width * this._height);
 
-        if (ENV.development) {
+        if (process.env.NODE_ENV !== 'production') {
             console.log('FrameGrabber', JSON.stringify({
                 size: {
                     x: this._width,
@@ -74,20 +74,22 @@ export class FrameGrabber {
             }
 
             if (drawAngle !== 0) {
-                this._ctx.translate(this._canvasWidth / 2, this._canvasHeight / 2);
-                this._ctx.rotate(drawAngle);
-                this._ctx.drawImage(drawable, -this._canvasHeight / 2, -this._canvasWidth / 2, this._canvasHeight, this._canvasWidth);
-                this._ctx.rotate(-drawAngle);
-                this._ctx.translate(-this._canvasWidth / 2, -this._canvasHeight / 2);
+                const halfWidth = this._canvasWidth >> 1;
+                const halfHeight = this._canvasHeight >> 1;
+                this._context.translate(halfWidth, halfHeight);
+                this._context.rotate(drawAngle);
+                this._context.drawImage(drawable, -halfHeight, -halfWidth, this._canvasHeight, this._canvasWidth);
+                this._context.rotate(-drawAngle);
+                this._context.translate(-halfWidth, -halfHeight);
             } else {
-                this._ctx.drawImage(drawable, 0, 0, this._canvasWidth, this._canvasHeight);
+                this._context.drawImage(drawable, 0, 0, this._canvasWidth, this._canvasHeight);
             }
 
-            const ctxData = this._ctx.getImageData(this._sx, this._sy, this._width, this._height).data;
+            const imageData = this._context.getImageData(this._sx, this._sy, this._width, this._height).data;
             if (doHalfSample) {
-                this._grayAndHalfSampleFromCanvasData(ctxData);
+                this._grayAndHalfSampleFromCanvasData(imageData);
             } else {
-                this._computeGray(ctxData);
+                this._computeGray(imageData);
             }
 
             return true;
@@ -98,13 +100,13 @@ export class FrameGrabber {
 
     _adjustCanvasSize() {
         if (this._canvas.width !== this._canvasWidth) {
-            if (ENV.development) {
+            if (process.env.NODE_ENV !== 'production') {
                 console.log('WARNING: canvas-size needs to be adjusted');
             }
             this._canvas.width = this._canvasWidth;
         }
         if (this._canvas.height !== this._canvasHeight) {
-            if (ENV.development) {
+            if (process.env.NODE_ENV !== 'production') {
                 console.log('WARNING: canvas-size needs to be adjusted');
             }
             this._canvas.height = this._canvasHeight;
@@ -112,46 +114,41 @@ export class FrameGrabber {
     }
 
     _grayAndHalfSampleFromCanvasData(imageData) {
-        const endIdx = Math.floor(imageData.length / 4);
-        const outWidth = this._width / 2;
-        let topRowIdx = 0;
-        let bottomRowIdx = this._width;
-        let outImgIdx = 0;
+        const endIndex = imageData.length >> 2;
+        const outWidth = this._width >> 1;
+        let topRowIndex = 0;
+        let bottomRowIndex = this._width;
+        let outImageIndex = 0;
 
-        while (bottomRowIdx < endIdx) {
+        while (bottomRowIndex < endIndex) {
             for (let i = 0; i < outWidth; i++) {
-                this._data[outImgIdx] = (
-                    (0.299 * imageData[topRowIdx * 4 + 0] +
-                        0.587 * imageData[topRowIdx * 4 + 1] +
-                        0.114 * imageData[topRowIdx * 4 + 2]) +
-                    (0.299 * imageData[(topRowIdx + 1) * 4 + 0] +
-                        0.587 * imageData[(topRowIdx + 1) * 4 + 1] +
-                        0.114 * imageData[(topRowIdx + 1) * 4 + 2]) +
-                    (0.299 * imageData[(bottomRowIdx) * 4 + 0] +
-                        0.587 * imageData[(bottomRowIdx) * 4 + 1] +
-                        0.114 * imageData[(bottomRowIdx) * 4 + 2]) +
-                    (0.299 * imageData[(bottomRowIdx + 1) * 4 + 0] +
-                        0.587 * imageData[(bottomRowIdx + 1) * 4 + 1] +
-                        0.114 * imageData[(bottomRowIdx + 1) * 4 + 2])) / 4;
-                outImgIdx++;
-                topRowIdx += 2;
-                bottomRowIdx += 2;
+                const top4 = topRowIndex << 2;
+                const bottom4 = bottomRowIndex << 2;
+                this._data[outImageIndex] = (
+                    (0.299 * imageData[top4 + 0] + 0.587 * imageData[top4 + 1] + 0.114 * imageData[top4 + 2]) +
+                    (0.299 * imageData[top4 + 4] + 0.587 * imageData[top4 + 5] + 0.114 * imageData[top4 + 6]) +
+                    (0.299 * imageData[bottom4 + 0] + 0.587 * imageData[bottom4 + 1] + 0.114 * imageData[bottom4 + 2]) +
+                    (0.299 * imageData[bottom4 + 4] + 0.587 * imageData[bottom4 + 5] + 0.114 * imageData[bottom4 + 6])
+                ) / 4;
+                outImageIndex++;
+                topRowIndex += 2;
+                bottomRowIndex += 2;
             }
-            topRowIdx += this._width;
-            bottomRowIdx += this._width;
+            topRowIndex += this._width;
+            bottomRowIndex += this._width;
         }
     }
 
     _computeGray(imageData) {
-        const endIdx = Math.floor(imageData.length / 4);
+        const imageDataLength = imageData.length;
 
         if (this._streamConfig && this._streamConfig.singleChannel) {
-            for (let i = 0; i < endIdx; i++) {
-                this._data[i] = imageData[i * 4 + 0];
+            for (let i = 0, j = 0; i < imageDataLength; i += 4, j++) {
+                this._data[j] = imageData[i];
             }
         } else {
-            for (let i = 0; i < endIdx; i++) {
-                this._data[i] = 0.299 * imageData[i * 4 + 0] + 0.587 * imageData[i * 4 + 1] + 0.114 * imageData[i * 4 + 2];
+            for (let i = 0, j = 0; i < imageDataLength; i += 4, j++) {
+                this._data[j] = 0.299 * imageData[i] + 0.587 * imageData[i + 1] + 0.114 * imageData[i + 2];
             }
         }
     }

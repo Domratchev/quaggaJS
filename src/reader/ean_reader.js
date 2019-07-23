@@ -197,6 +197,8 @@ export class EANReader extends BarcodeReader {
             offset = startInfo.end;
             startInfo = null;
         }
+
+        return null;
     }
 
     _verifyTrailingWhitespace(endInfo) {
@@ -311,11 +313,12 @@ export class EANReader extends BarcodeReader {
         }
 
         if (this.supplements.length > 0) {
-            const ext = this._decodeExtensions(code.end);
-            if (!ext) {
+            const supplement = this._decodeExtensions(code.end);
+            if (!supplement) {
                 return null;
             }
-            const lastCode = ext.decodedCodes[ext.decodedCodes.length - 1];
+
+            const lastCode = supplement.decodedCodes[supplement.decodedCodes.length - 1];
             const endInfo = {
                 start: lastCode.start + (((lastCode.end - lastCode.start) / 2) | 0),
                 end: lastCode.end
@@ -326,9 +329,9 @@ export class EANReader extends BarcodeReader {
             }
 
             resultInfo = {
-                supplement: ext,
-                code: result.join('') + ext.code
-            }
+                supplement,
+                code: result.join('') + supplement.code
+            };
         }
 
         return {
@@ -345,14 +348,13 @@ export class EANReader extends BarcodeReader {
     _decodeExtensions(offset) {
         const start = this._nextSet(this._row, offset);
         const startInfo = this._findPattern(EXTENSION_START_PATTERN, start, false, false);
-        let result;
 
         if (startInfo === null) {
             return null;
         }
 
         for (let i = 0; i < this.supplements.length; i++) {
-            result = this.supplements[i].decode(this._row, startInfo.end);
+            let result = this.supplements[i].decode(this._row, startInfo.end);
             if (result !== null) {
                 return {
                     code: result.code,
@@ -361,9 +363,10 @@ export class EANReader extends BarcodeReader {
                     end: result.end,
                     codeset: '',
                     decodedCodes: result.decodedCodes
-                }
+                };
             }
         }
+
         return null;
     }
 
@@ -373,10 +376,13 @@ export class EANReader extends BarcodeReader {
         for (let i = result.length - 2; i >= 0; i -= 2) {
             sum += result[i];
         }
+
         sum *= 3;
+
         for (let i = result.length - 1; i >= 0; i -= 2) {
             sum += result[i];
         }
+
         return sum % 10 === 0;
     }
 }

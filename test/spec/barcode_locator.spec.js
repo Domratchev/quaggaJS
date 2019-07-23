@@ -1,8 +1,8 @@
-import Config from '../../src/config/config';
+import { config } from '../../src/config/config';
 import BarcodeLocator from '../../src/locator/barcode_locator';
 
 describe('checkImageConstraints', () => {
-    let config;
+    let _config;
     let inputStream;
     let imageSize;
     let streamConfig = {};
@@ -12,7 +12,7 @@ describe('checkImageConstraints', () => {
             x: 640,
             y: 480
         };
-        config = { ...Config };
+        _config = { ...config };
         inputStream = {
             getWidth: () => imageSize.x,
             getHeight: () => imageSize.y,
@@ -39,7 +39,7 @@ describe('checkImageConstraints', () => {
 
     it('should not adjust the image size if not needed', () => {
         const expected = { x: imageSize.x, y: imageSize.y };
-        BarcodeLocator.checkImageConstraints(inputStream, config.locator);
+        BarcodeLocator.checkImageConstraints(inputStream, _config.locator);
         expect(inputStream.getWidth()).to.equal(expected.x);
         expect(inputStream.getHeight()).to.equal(expected.y);
     });
@@ -47,9 +47,9 @@ describe('checkImageConstraints', () => {
     it('should adjust the image size', () => {
         const expected = { x: imageSize.x, y: imageSize.y };
 
-        config.locator.halfSample = true;
+        _config.locator.halfSample = true;
         imageSize.y += 1;
-        BarcodeLocator.checkImageConstraints(inputStream, config.locator);
+        BarcodeLocator.checkImageConstraints(inputStream, _config.locator);
         expect(inputStream.getWidth()).to.equal(expected.x);
         expect(inputStream.getHeight()).to.equal(expected.y);
     });
@@ -58,8 +58,8 @@ describe('checkImageConstraints', () => {
         const expected = { x: imageSize.x, y: imageSize.y };
 
         imageSize.y += 1;
-        config.locator.halfSample = false;
-        BarcodeLocator.checkImageConstraints(inputStream, config.locator);
+        _config.locator.halfSample = false;
+        BarcodeLocator.checkImageConstraints(inputStream, _config.locator);
         expect(inputStream.getHeight()).to.equal(expected.y);
         expect(inputStream.getWidth()).to.equal(expected.x);
     });
@@ -82,8 +82,8 @@ describe('checkImageConstraints', () => {
             left: '18%'
         };
 
-        config.locator.halfSample = false;
-        BarcodeLocator.checkImageConstraints(inputStream, config.locator);
+        _config.locator.halfSample = false;
+        BarcodeLocator.checkImageConstraints(inputStream, _config.locator);
         expect(inputStream.getHeight()).to.equal(expectedSize.y);
         expect(inputStream.getWidth()).to.equal(expectedSize.x);
         expect(inputStream.setTopRight.getCall(0).args[0]).to.deep.equal(expectedTopRight);
@@ -108,8 +108,8 @@ describe('checkImageConstraints', () => {
             left: '0%'
         };
 
-        config.locator.halfSample = false;
-        BarcodeLocator.checkImageConstraints(inputStream, config.locator);
+        _config.locator.halfSample = false;
+        BarcodeLocator.checkImageConstraints(inputStream, _config.locator);
         expect(inputStream.getHeight()).to.equal(expectedSize.y);
         expect(inputStream.getWidth()).to.equal(expectedSize.x);
         expect(inputStream.setTopRight.getCall(0).args[0]).to.deep.equal(expectedTopRight);

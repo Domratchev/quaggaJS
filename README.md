@@ -95,8 +95,7 @@ The above condition evaluates to:
 
 ## <a name="installing">Installing</a>
 
-QuaggaJS can be installed using __npm__, __bower__, or by including it with
-the __script__ tag.
+QuaggaJS can be installed using __npm__ or by including it with the __script__ tag.
 
 ### NPM
 
@@ -114,14 +113,6 @@ const Quagga = require('quagga').default; // Common JS (important: default)
 Currently, the full functionality is only available through the browser. When
 using QuaggaJS within __node__, only file-based decoding is available. See the
 example for [node_examples](#node-example).
-
-### Bower
-
-You can also install QuaggaJS through __bower__:
-
-```console
-> bower install quagga
-```
 
 ### Script-Tag Anno 1998
 
@@ -181,19 +172,19 @@ node.
 ```javascript
 Quagga.init({
     inputStream : {
-      name : "Live",
-      type : "LiveStream",
+      name : 'Live',
+      type : 'LiveStream',
       target: document.querySelector('#yourElement')    // Or '#yourElement' (optional)
     },
     decoder : {
-      readers : ["code_128_reader"]
+      readers : ['code_128_reader']
     }
   }, function(err) {
       if (err) {
           console.log(err);
           return
       }
-      console.log("Initialization finished. Ready to start");
+      console.log('Initialization finished. Ready to start');
       Quagga.start();
   });
 ```
@@ -552,15 +543,15 @@ locating-mechanism for more robust results.
 ```javascript
 Quagga.decodeSingle({
     decoder: {
-        readers: ["code_128_reader"] // List of active readers
+        readers: ['code_128_reader'] // List of active readers
     },
     locate: true, // try to locate the barcode in the image
     src: '/test/fixtures/code_128/image-001.jpg' // or 'data:image/jpg;base64,' + data
 }, function(result){
     if(result.codeResult) {
-        console.log("result", result.codeResult.code);
+        console.log('result', result.codeResult.code);
     } else {
-        console.log("not detected");
+        console.log('not detected');
     }
 });
 ```
@@ -576,19 +567,19 @@ property `numOfWorkers` must be explicitly set to `0`.
 var Quagga = require('quagga').default;
 
 Quagga.decodeSingle({
-    src: "image-abc-123.jpg",
+    src: 'image-abc-123.jpg',
     numOfWorkers: 0,  // Needs to be 0 when used within node
     inputStream: {
         size: 800  // restrict input-size to be 800px in width (long-side)
     },
     decoder: {
-        readers: ["code_128_reader"] // List of active readers
+        readers: ['code_128_reader'] // List of active readers
     },
 }, function(result) {
     if(result.codeResult) {
-        console.log("result", result.codeResult.code);
+        console.log('result', result.codeResult.code);
     } else {
-        console.log("not detected");
+        console.log('not detected');
     }
 });
 ```

@@ -72,7 +72,7 @@ function initCanvas() {
     }
     _canvasContainer.dom.binary = document.createElement('canvas');
     _canvasContainer.dom.binary.className = 'binaryBuffer';
-    if (_config.debug && _config.debug.showCanvas) {
+    if (process.env.NODE_ENV !== 'production' && _config.debug && _config.debug.showCanvas) {
         document.querySelector('#debug').appendChild(_canvasContainer.dom.binary);
     }
     _canvasContainer.ctx.binary = _canvasContainer.dom.binary.getContext('2d');
@@ -86,7 +86,7 @@ function initCanvas() {
  */
 function boxFromPatches(patches) {
     let averageRad = patches.reduce((sum, patch) => {
-        if (_config.debug && _config.debug.showPatches) {
+        if (process.env.NODE_ENV !== 'production' && _config.debug && _config.debug.showPatches) {
             // draw all patches which are to be taken into consideration
             ImageDebug.drawRect(patch.pos, _subImageWrapper.size, _canvasContainer.ctx.binary, { color: 'red' });
         }
@@ -102,17 +102,17 @@ function boxFromPatches(patches) {
 
     const cos = Math.cos(averageRad);
     const sin = Math.sin(averageRad);
-    const matrix = Float32Array.from([cos, sin, -sin, cos]);
+    const matrix = new Float32Array([cos, sin, -sin, cos]);
     const context = _canvasContainer.ctx.binary;
 
     // iterate over patches and rotate by angle
-    patches.forEach(patch => {
+    patches.forEach(({ box }) => {
         for (let j = 0; j < 4; j++) {
-            patch.box[j] = transformWithMatrix(patch.box[j], matrix);
+            box[j] = transformWithMatrix(box[j], matrix);
         }
 
-        if (_config.debug && _config.debug.boxFromPatches.showTransformed) {
-            ImageDebug.drawPath(patch.box, { x: 'x', y: 'y' }, context, { color: '#99ff00', lineWidth: 2 });
+        if (process.env.NODE_ENV !== 'production' && _config.debug && _config.debug.boxFromPatches.showTransformed) {
+            ImageDebug.drawPath(box, { x: 'x', y: 'y' }, context, { color: '#99ff00', lineWidth: 2 });
         }
     });
 
@@ -122,26 +122,26 @@ function boxFromPatches(patches) {
     let maxY = -minY;
 
     // find bounding box
-    patches.forEach(patch => {
-        patch.box.forEach(vertex => {
-            if (vertex.x < minX) {
-                minX = vertex.x;
+    patches.forEach(({ box }) => {
+        box.forEach(({ x, y }) => {
+            if (x < minX) {
+                minX = x;
             }
-            if (vertex.x > maxX) {
-                maxX = vertex.x;
+            if (x > maxX) {
+                maxX = x;
             }
-            if (vertex.y < minY) {
-                minY = vertex.y;
+            if (y < minY) {
+                minY = y;
             }
-            if (vertex.y > maxY) {
-                maxY = vertex.y;
+            if (y > maxY) {
+                maxY = y;
             }
         });
     });
 
     const box = [{ x: minX, y: minY }, { x: maxX, y: minY }, { x: maxX, y: maxY }, { x: minX, y: maxY }];
 
-    if (_config.debug && _config.debug.boxFromPatches.showTransformedBox) {
+    if (process.env.NODE_ENV !== 'production' && _config.debug && _config.debug.boxFromPatches.showTransformedBox) {
         ImageDebug.drawPath(box, { x: 'x', y: 'y' }, context, { color: '#ff0000', lineWidth: 2 });
     }
 
@@ -151,7 +151,7 @@ function boxFromPatches(patches) {
         box[j] = transformWithMatrix(box[j], inverseMatrix);
     }
 
-    if (_config.debug && _config.debug.boxFromPatches.showBB) {
+    if (process.env.NODE_ENV !== 'production' && _config.debug && _config.debug.boxFromPatches.showBB) {
         ImageDebug.drawPath(box, { x: 'x', y: 'y' }, context, { color: '#ff0000', lineWidth: 2 });
     }
 
@@ -182,7 +182,7 @@ function invert(matrix) {
         return null;
     }
 
-    return Float32Array.from([a3 / determinant, -a1 / determinant, -a2 / determinant, a0 / determinant]);
+    return new Float32Array([a3 / determinant, -a1 / determinant, -a2 / determinant, a0 / determinant]);
 }
 
 /**
@@ -205,7 +205,7 @@ function binarizeImage() {
     otsuThreshold(_currentImageWrapper, _binaryImageWrapper);
     _binaryImageWrapper.zeroBorder();
 
-    if (_config.debug && _config.debug.showCanvas) {
+    if (process.env.NODE_ENV !== 'production' && _config.debug && _config.debug.showCanvas) {
         _binaryImageWrapper.show(_canvasContainer.dom.binary, 255);
     }
 }
@@ -232,8 +232,8 @@ function findPatches() {
             const rasterizer = new Rasterizer(_skelImageWrapper, _labelImageWrapper);
             const rasterResult = rasterizer.rasterize(0);
 
-            if (_config.debug && _config.debug.showLabels) {
-                _labelImageWrapper.overlay(_canvasContainer.dom.binary, Math.floor(360 / rasterResult.count), x, y);
+            if (process.env.NODE_ENV !== 'production' && _config.debug && _config.debug.showLabels) {
+                _labelImageWrapper.overlay(_canvasContainer.dom.binary, 360 / rasterResult.count | 0, x, y);
             }
 
             // calculate moments from the skeletonized patch
@@ -244,7 +244,7 @@ function findPatches() {
             if (patch) {
                 patchesFound.push(patch);
 
-                if (_config.debug && _config.debug.showFoundPatches) {
+                if (process.env.NODE_ENV !== 'production' && _config.debug && _config.debug.showFoundPatches) {
                     ImageDebug.drawRect(patch.pos, _subImageWrapper.size, context, { color: '#99ff00', lineWidth: 2 });
                 }
             }
@@ -260,30 +260,17 @@ function findPatches() {
  * @param maxLabel
  */
 function findBiggestConnectedAreas(maxLabel) {
-    let labelHist = [];
+    let labelHist = new Array(maxLabel).fill(0);
 
-    for (let i = 0; i < maxLabel; i++) {
-        labelHist.push(0);
-    }
-
-    let i = _patchLabelGrid.data.length;
-    while (i--) {
-        if (_patchLabelGrid.data[i] > 0) {
-            labelHist[_patchLabelGrid.data[i] - 1]++;
+    _patchLabelGrid.data.forEach(data => {
+        if (data > 0) {
+            labelHist[data - 1]++;
         }
-    }
-
-    labelHist = labelHist.map((val, index) => {
-        return {
-            val,
-            label: index + 1
-        };
     });
 
-    labelHist.sort((a, b) => b.val - a.val);
-
     // extract top areas with at least 6 patches present
-    const topLabels = labelHist.filter(el => el.val >= 5);
+    const topLabels = labelHist
+        .map((val, index) => ({ val, label: index + 1 })).sort((a, b) => b.val - a.val).filter(({ val }) => val >= 5);
 
     return topLabels;
 }
@@ -293,36 +280,35 @@ function findBiggestConnectedAreas(maxLabel) {
  */
 function findBoxes(topLabels, maxLabel) {
     const boxes = [];
-    const hsv = [0, 1, 1];
-    const rgb = [0, 0, 0];
+    const debug = process.env.NODE_ENV !== 'production' && _config.debug && _config.debug.showRemainingPatchLabels;
+    const context = _canvasContainer.ctx.binary;
 
     for (let i = 0; i < topLabels.length; i++) {
         const patches = [];
 
-        for (let sum = _patchLabelGrid.data.length; sum--;) {
-            if (_patchLabelGrid.data[sum] === topLabels[i].label) {
-                const patch = _imageToPatchGrid.data[sum];
-                patches.push(patch);
+        _patchLabelGrid.data.forEach((data, index) => {
+            if (data === topLabels[i].label) {
+                patches.push(_imageToPatchGrid.data[index]);
             }
-        }
+        });
 
         const box = boxFromPatches(patches);
 
         if (box) {
             boxes.push(box);
 
-            // draw patch-labels if requested
-            if (_config.debug && _config.debug.showRemainingPatchLabels) {
-                hsv[0] = (topLabels[i].label / (maxLabel + 1)) * 360;
+            if (debug) {
+                // draw patch-labels if requested
+                const hsv = [(topLabels[i].label / (maxLabel + 1)) * 360, 1, 1];
+                const rgb = [0, 0, 0];
                 hsv2rgb(hsv, rgb);
 
-                const context = _canvasContainer.ctx.binary;
                 const style = {
-                    color: 'rgb(' + rgb.join(',') + ')',
+                    color: `rgb(${rgb.join(',')})`,
                     lineWidth: 2
                 };
 
-                patches.forEach(patch => ImageDebug.drawRect(patch.pos, _subImageWrapper.size, context, style));
+                patches.forEach(({ pos }) => ImageDebug.drawRect(pos, _subImageWrapper.size, context, style));
             }
         }
     }
@@ -349,7 +335,7 @@ function clusterize(points, threshold, property = 'rad') {
     });
 
     return clusters;
-};
+}
 
 /**
  * Find similar moments (via cluster)
@@ -361,7 +347,7 @@ function similarMoments(moments) {
         const count = item.points.length;
         return count > top.count ? { item, count } : top;
     }, { item: { points: [] }, count: 0 });
-    const result = topCluster.item.points.map(point => point.point);
+    const result = topCluster.item.points.map(({ point }) => point);
 
     return result;
 }
@@ -371,7 +357,7 @@ function skeletonize(x, y) {
     _skeletonizer.skeletonize();
 
     // Show skeleton if requested
-    if (_config.debug && _config.debug.showSkeleton) {
+    if (process.env.NODE_ENV !== 'production' && _config.debug && _config.debug.showSkeleton) {
         _skelImageWrapper.overlay(_canvasContainer.dom.binary, 360, x, y);
     }
 }
@@ -393,10 +379,10 @@ function describePatch(moments, index, x, y) {
         // if at least 2 moments are found which have at least minComponentWeights covered
         if (eligibleMoments.length > 1) {
             const matchingMoments = similarMoments(eligibleMoments);
-            const length = matchingMoments.length;
+            const length = matchingMoments.length | 0;
 
             // Only two of the moments are allowed not to fit into the equation
-            if (length > 1 && length >= (eligibleMoments.length / 4) * 3 && length > moments.length / 4) {
+            if (length > 1 && (length << 2) >= eligibleMoments.length * 3 && (length << 2) > moments.length) {
                 // determine the similarity of the moments
                 const rad = matchingMoments.reduce((sum, moment) => sum + moment.rad, 0) / length;
 
@@ -490,7 +476,7 @@ function rasterizeAngularSimilarity(patchesFound) {
     }
 
     // draw patch-labels if requested
-    if (_config.debug && _config.debug.showPatchLabels) {
+    if (process.env.NODE_ENV !== 'production' && _config.debug && _config.debug.showPatchLabels) {
         const context = _canvasContainer.ctx.binary;
 
         for (let j = 0; j < _patchLabelGrid.data.length; j++) {
@@ -547,7 +533,7 @@ export default {
     checkImageConstraints: (inputStream, config) => {
         let width = inputStream.getWidth();
         let height = inputStream.getHeight();
-        const sample = config.halfSample ? 0.5 : 1;
+        const shift = config.halfSample ? 1 : 0 | 0;
 
         // calculate width and height based on area
         if (inputStream.getConfig().area) {
@@ -559,22 +545,23 @@ export default {
         }
 
         const size = {
-            x: Math.floor(width * sample),
-            y: Math.floor(height * sample)
+            x: width >> shift,
+            y: height >> shift
         };
 
         const patchSize = calculatePatchSize(config.patchSize, size);
-        if (ENV.development) {
+        if (process.env.NODE_ENV !== 'production') {
             console.log('Patch-Size:', JSON.stringify(patchSize));
         }
 
-        inputStream.setWidth(Math.floor(Math.floor(size.x / patchSize.x) * (1 / sample) * patchSize.x));
-        inputStream.setHeight(Math.floor(Math.floor(size.y / patchSize.y) * (1 / sample) * patchSize.y));
+        inputStream.setWidth((size.x / patchSize.x << shift) * patchSize.x | 0);
+        inputStream.setHeight((size.y / patchSize.y << shift) * patchSize.y | 0);
 
         if ((inputStream.getWidth() % patchSize.x) === 0 && (inputStream.getHeight() % patchSize.y) === 0) {
             return true;
         }
 
+        // eslint-disable-next-line max-len
         throw new Error(`Image dimensions do not comply with the current settings: width (${width}) and height (${height}) must be a multiple of ${patchSize.x}`);
     }
 };

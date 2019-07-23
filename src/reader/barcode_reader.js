@@ -63,11 +63,14 @@ export class BarcodeReader {
             const count = counter[i];
             const scaled = code[i] * barWidth;
             const singleError = Math.abs(count - scaled) / scaled;
+
             if (singleError > maxSingleError) {
                 return Number.MAX_VALUE;
             }
+
             error += singleError;
         }
+
         return error / modulo;
     }
 
@@ -93,10 +96,9 @@ export class BarcodeReader {
     }
 
     decodePattern(pattern) {
-        let result;
-
         this._row = pattern;
-        result = this._decode();
+        let result = this._decode();
+
         if (result === null) {
             this._row.reverse();
             result = this._decode();
@@ -132,8 +134,8 @@ export class BarcodeReader {
         isWhite = (typeof isWhite !== 'undefined') ? isWhite : true;
         offset = (typeof offset !== 'undefined') ? offset : this._nextUnset(this._row);
         end = end || this._row.length;
-
         counters[counterPos] = 0;
+
         for (let i = offset; i < end; i++) {
             if (this._row[i] ^ isWhite) {
                 counters[counterPos]++;
@@ -143,6 +145,7 @@ export class BarcodeReader {
                 isWhite = !isWhite;
             }
         }
+
         return counters;
     }
 

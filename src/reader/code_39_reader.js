@@ -140,7 +140,7 @@ export class Code39Reader extends BarcodeReader {
                 if (counterPos === counter.length - 1) {
                     // find start pattern
                     if (this._toPattern(counter) === ASTERISK) {
-                        whiteSpaceMustStart = Math.floor(Math.max(0, patternStart - ((i - patternStart) / 4)));
+                        whiteSpaceMustStart = Math.max(0, patternStart - ((i - patternStart) / 4)) | 0;
                         if (this._matchRange(whiteSpaceMustStart, patternStart, 0)) {
                             return {
                                 start: patternStart,
@@ -163,6 +163,7 @@ export class Code39Reader extends BarcodeReader {
                 isWhite = !isWhite;
             }
         }
+
         return null;
     }
 }

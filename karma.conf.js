@@ -1,10 +1,23 @@
-const path = require('path');
-const webpack = require('webpack');
+const webpackConfig = {
+    mode: 'development',
+    module: {
+        rules: [{
+            test: /\.js$/,
+            exclude: /node_modules/,
+            use: {
+                loader: 'babel-loader',
+                options: {
+                    envName: 'test'
+                }
+            }
+        }]
+    }
+};
 
-module.exports = function (config) {
+module.exports = config => {
     config.set({
         basePath: '',
-        frameworks: ['source-map-support', 'mocha', 'chai', 'sinon', 'sinon-chai'],
+        frameworks: ['source-map-support', 'mocha', 'chai', 'sinon'],
         files: [
             'test/test-main.js',
             { pattern: 'test/spec/**/*.js', included: false }
@@ -12,30 +25,7 @@ module.exports = function (config) {
         preprocessors: {
             'test/test-main.js': ['webpack']
         },
-        webpack: {
-            entry: './src/quagga.js',
-            mode: 'development',
-            module: {
-                rules: [{
-                    test: /\.jsx?$/,
-                    exclude: [
-                        path.resolve('node_modules/')
-                    ],
-                    loader: 'babel-loader'
-                }]
-            },
-            resolve: {
-                alias: {
-                    Common: path.resolve(__dirname, 'test/mocks/'),
-                    Input: path.resolve(__dirname, 'src/input/')
-                }
-            },
-            plugins: [
-                new webpack.DefinePlugin({
-                    ENV: require(path.join(__dirname, './env/production'))
-                })
-            ]
-        },
+        webpack: webpackConfig,
         plugins: [
             'karma-chrome-launcher',
             'karma-firefox-launcher',
@@ -43,9 +33,8 @@ module.exports = function (config) {
             'karma-mocha',
             'karma-chai',
             'karma-sinon',
-            'karma-sinon-chai',
             'karma-source-map-support',
-            require('karma-webpack')
+            'karma-webpack'
         ],
         reporters: ['progress', 'coverage'],
         port: 9876,
@@ -56,7 +45,7 @@ module.exports = function (config) {
         singleRun: false,
         coverageReporter: {
             type: 'html',
-            dir: 'coverage/'
+            dir: './coverage'
         }
     });
 };

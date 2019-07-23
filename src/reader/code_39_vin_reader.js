@@ -26,7 +26,7 @@ export class Code39VINReader extends Code39Reader {
         code = code.replace(/[IOQ]/g, '');
 
         if (!/[A-Z0-9]{17}/.test(code)) {
-            if (ENV.development) {
+            if (process.env.NODE_ENV !== 'production') {
                 console.log('Failed AZ09 pattern code:', code);
             }
             return null;

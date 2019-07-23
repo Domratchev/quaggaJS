@@ -263,8 +263,10 @@ $(function () {
         if (result) {
             if (result.boxes) {
                 drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute('width')), parseInt(drawingCanvas.getAttribute('height')));
-                result.boxes.filter(box => box !== result.box).forEach(box => {
-                    Quagga.ImageDebug.drawPath(box, { x: 'x', y: 'y' }, drawingCtx, { color: 'green', lineWidth: 2 });
+                result.boxes.forEach(box => {
+                    if (box !== result.box) {
+                        Quagga.ImageDebug.drawPath(box, { x: 'x', y: 'y' }, drawingCtx, { color: 'green', lineWidth: 2 });
+                    }
                 });
             }
 

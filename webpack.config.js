@@ -1,46 +1,40 @@
-const path = require('path');
-const webpack = require('webpack');
 const UmdPlugin = require('./plugins/umd');
 
 module.exports = {
-    entry: path.resolve(__dirname, 'src/quagga.js'),
+    entry: './src/quagga.js',
     devtool: 'inline-source-map',
     mode: 'development',
     module: {
         rules: [{
-            test: /\.tsx?$/,
+            test: /\.ts$/,
             exclude: /node_modules/,
             loader: 'babel-loader'
         }, {
-            test: /\.jsx?$/,
+            test: /\.js$/,
             exclude: /node_modules/,
             loader: 'babel-loader'
         }]
     },
-    resolve: {
-        alias: {
-            Common: path.resolve(__dirname, 'src/common/'),
-            Input: path.resolve(__dirname, 'src/input/')
-        },
-        extensions: ['.js', '.ts']
-    },
     output: {
-        path: path.resolve(__dirname, 'dist'),
+        path: __dirname + '/dist',
         publicPath: '/',
         filename: 'quagga.js',
         library: 'Quagga',
         libraryTarget: 'var',
         umdNamedDefine: true
-        // optionalAmdExternalAsGlobal: { 'fff'}
     },
+    plugins: [
+        new UmdPlugin()
+    ],
+    resolve: {
+        extensions: ['.js', '.ts'],
+        alias: {
+            './config/config': './config/config.dev'
+        }
+    },
+    target: 'web',
     devServer: {
         contentBase: './',
         hot: true
-    },
-    plugins: [
-        new UmdPlugin(),
-        new webpack.DefinePlugin({
-            ENV: require(path.resolve(__dirname, 'env', process.env.BUILD_ENV))
-        })
-    ]
+    }
 };

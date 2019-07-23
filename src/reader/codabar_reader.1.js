@@ -122,7 +122,7 @@ export class CodabarReader extends BarcodeReader {
 
         ['space', 'bar'].forEach(key => {
             const kind = categorization[key];
-            kind.wide.min = Math.floor((kind.narrow.size / kind.narrow.counts + kind.wide.size / kind.wide.counts) / 2);
+            kind.wide.min = (kind.narrow.size / kind.narrow.counts + kind.wide.size / kind.wide.counts) >> 1;
             kind.narrow.max = Math.ceil(kind.wide.min);
             kind.wide.max = Math.ceil((kind.wide.size * MAX_ACCEPTABLE + PADDING) / kind.wide.counts);
         });

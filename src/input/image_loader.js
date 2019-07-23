@@ -21,7 +21,7 @@ export class ImageLoader {
                 }
             }
             if (notLoadedImages.length === 0) {
-                if (ENV.development) {
+                if (process.env.NODE_ENV !== 'production') {
                     console.log('Images loaded');
                 }
                 try {

@@ -1,11 +1,12 @@
 import CameraAccess, { pickConstraints } from '../../src/input/camera_access';
-import { setStream, getConstraints, setSupported } from 'Common/media-devices';
 
 describe('camera_access', () => {
     let originalURL;
     let originalMediaStreamTrack;
     let video;
-    let stream;
+    let _stream;
+    let _constraints;
+    let _supported = true;
 
     beforeEach(() => {
         const tracks = [{
@@ -21,12 +22,20 @@ describe('camera_access', () => {
             }
         };
 
-        stream = {
+        _stream = {
             getVideoTracks: function () {
                 return tracks;
             }
         };
-        setStream(stream);
+
+        sinon.stub(navigator.mediaDevices, 'getUserMedia').callsFake(constraints => {
+            _constraints = constraints;
+            if (_supported) {
+                return Promise.resolve(_stream);
+            }
+            return Promise.reject(new Error('das'));
+        });
+
         sinon.spy(tracks[0], 'stop');
 
         video = {
@@ -47,6 +56,8 @@ describe('camera_access', () => {
     afterEach(() => {
         window.URL = originalURL;
         window.MediaStreamTrack = originalMediaStreamTrack;
+
+        sinon.restore();
     });
 
     describe('success', () => {
@@ -54,7 +65,7 @@ describe('camera_access', () => {
             it('should request the camera', done => {
                 CameraAccess.request(video, {})
                     .then(() => {
-                        expect(video.srcObject).to.deep.equal(stream);
+                        expect(video.srcObject).to.deep.equal(_stream);
                         done();
                     });
             });
@@ -68,14 +79,13 @@ describe('camera_access', () => {
                     maxAspectRatio: 100
                 })
                     .then(() => {
-                        const constraints = getConstraints();
-                        expect(constraints.video.width).to.equal(320);
-                        expect(constraints.video.height).to.equal(240);
-                        expect(constraints.video.facingMode).to.equal('user');
-                        expect(constraints.video.aspectRatio).to.equal(2);
-                        expect(constraints.video.facing).to.equal(undefined);
-                        expect(constraints.video.minAspectRatio).to.equal(undefined);
-                        expect(constraints.video.maxAspectRatio).to.equal(undefined);
+                        expect(_constraints.video.width).to.equal(320);
+                        expect(_constraints.video.height).to.equal(240);
+                        expect(_constraints.video.facingMode).to.equal('user');
+                        expect(_constraints.video.aspectRatio).to.equal(2);
+                        expect(_constraints.video.facing).to.equal(undefined);
+                        expect(_constraints.video.minAspectRatio).to.equal(undefined);
+                        expect(_constraints.video.maxAspectRatio).to.equal(undefined);
                         done();
                     });
             });
@@ -85,7 +95,7 @@ describe('camera_access', () => {
             it('should release the camera', done => {
                 CameraAccess.request(video, {})
                     .then(() => {
-                        expect(video.srcObject).to.deep.equal(stream);
+                        expect(video.srcObject).to.deep.equal(_stream);
                         CameraAccess.release();
                         expect(video.srcObject.getVideoTracks()).to.have.length(1);
                         expect(video.srcObject.getVideoTracks()[0].stop.calledOnce).to.equal(true);
@@ -97,11 +107,11 @@ describe('camera_access', () => {
 
     describe('failure', () => {
         beforeEach(() => {
-            setSupported(false);
+            _supported = false;
         });
 
         afterEach(() => {
-            setSupported(true);
+            _supported = true;
         });
 
         describe('permission denied', () => {

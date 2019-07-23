@@ -54,14 +54,14 @@ export class BarcodeDecoder {
     }
 
     _initCanvas() {
-        if (ENV.development && typeof document !== 'undefined') {
-            const $debug = document.querySelector('#debug.detection');
+        if (process.env.NODE_ENV !== 'production' && typeof document !== 'undefined') {
+            const debugDiv = document.querySelector('#debug.detection');
             this._canvas.dom.frequency = document.querySelector('canvas.frequency');
             if (!this._canvas.dom.frequency) {
                 this._canvas.dom.frequency = document.createElement('canvas');
                 this._canvas.dom.frequency.className = 'frequency';
-                if ($debug) {
-                    $debug.appendChild(this._canvas.dom.frequency);
+                if (debugDiv) {
+                    debugDiv.appendChild(this._canvas.dom.frequency);
                 }
             }
             this._canvas.ctx.frequency = this._canvas.dom.frequency.getContext('2d');
@@ -70,8 +70,8 @@ export class BarcodeDecoder {
             if (!this._canvas.dom.pattern) {
                 this._canvas.dom.pattern = document.createElement('canvas');
                 this._canvas.dom.pattern.className = 'patternBuffer';
-                if ($debug) {
-                    $debug.appendChild(this._canvas.dom.pattern);
+                if (debugDiv) {
+                    debugDiv.appendChild(this._canvas.dom.pattern);
                 }
             }
             this._canvas.ctx.pattern = this._canvas.dom.pattern.getContext('2d');
@@ -95,22 +95,26 @@ export class BarcodeDecoder {
             } else if (typeof readerConfig === 'string') {
                 reader = readerConfig;
             }
-            if (ENV.development) {
+
+            if (process.env.NODE_ENV !== 'production') {
                 console.log('Before registering reader:', reader);
             }
+
             if (configuration.supplements) {
                 supplements = configuration.supplements.map(supplement => new READERS[supplement]());
             }
+
             this._barcodeReaders.push(new READERS[reader](configuration, supplements));
         });
-        if (ENV.development) {
+
+        if (process.env.NODE_ENV !== 'production') {
             console.log('Registered Readers:',
-                ...this._barcodeReaders.map(reader => JSON.stringify({ format: reader.FORMAT, config: reader.config })));
+                ...this._barcodeReaders.map(({ config, FORMAT }) => JSON.stringify({ config, FORMAT })));
         }
     }
 
     _initConfig() {
-        if (this._config.debug && typeof document !== 'undefined') {
+        if (process.env.NODE_ENV !== 'production' && this._config.debug && typeof document !== 'undefined') {
             this._canvas.dom.frequency.style.display = this._config.debug.showFrequency ? 'block' : 'none';
             this._canvas.dom.pattern.style.display = this._config.debug.showPattern ? 'block' : 'none';
         }
@@ -134,8 +138,8 @@ export class BarcodeDecoder {
             line[1].x += extension.x;
         }
 
-        const lineLength = Math.sqrt(Math.pow(line[1].y - line[0].y, 2) + Math.pow(line[1].x - line[0].x, 2));
-        let extensionLength = Math.floor(lineLength * 0.1);
+        const lineLength = Math.sqrt((line[1].y - line[0].y) ** 2 + (line[1].x - line[0].x) ** 2);
+        let extensionLength = lineLength * 0.1 | 0;
 
         extendLine(extensionLength);
 
@@ -151,25 +155,25 @@ export class BarcodeDecoder {
 
     _getLine(box) {
         return [{
-            x: (box[1].x - box[0].x) / 2 + box[0].x,
-            y: (box[1].y - box[0].y) / 2 + box[0].y
+            x: (box[1].x + box[0].x) / 2,
+            y: (box[1].y + box[0].y) / 2
         }, {
-            x: (box[3].x - box[2].x) / 2 + box[2].x,
-            y: (box[3].y - box[2].y) / 2 + box[2].y
+            x: (box[3].x + box[2].x) / 2,
+            y: (box[3].y + box[2].y) / 2
         }];
     }
 
     _tryDecode(line) {
         const barcodeLine = Bresenham.getBarcodeLine(this._inputImageWrapper, line[0], line[1]);
 
-        if (this._config.debug && this._config.debug.showFrequency) {
+        if (process.env.NODE_ENV !== 'production' && this._config.debug && this._config.debug.showFrequency) {
             ImageDebug.drawPath(line, { x: 'x', y: 'y' }, this._canvas.ctx.overlay, { color: 'red', lineWidth: 3 });
             Bresenham.debug.printFrequency(barcodeLine.line, this._canvas.dom.frequency);
         }
 
         Bresenham.toBinaryLine(barcodeLine);
 
-        if (this._config.debug && this._config.debug.showPattern) {
+        if (process.env.NODE_ENV !== 'production' && this._config.debug && this._config.debug.showPattern) {
             Bresenham.debug.printPattern(barcodeLine.line, this._canvas.dom.pattern);
         }
 
@@ -224,9 +228,10 @@ export class BarcodeDecoder {
      */
     decodeFromBoundingBox(box) {
         const context = this._canvas.ctx.overlay;
+        const debug = this._config.debug;
 
-        if (this._config.debug && this._config.debug.drawBoundingBox && context) {
-            ImageDebug.drawPath(box, { x: 0, y: 1 }, context, { color: 'blue', lineWidth: 2 });
+        if (process.env.NODE_ENV !== 'production' && debug && debug.drawBoundingBox && context) {
+            ImageDebug.drawPath(box, { x: 'x', y: 'y' }, context, { color: 'blue', lineWidth: 2 });
         }
 
         let line = this._getLine(box);
@@ -247,7 +252,7 @@ export class BarcodeDecoder {
             return null;
         }
 
-        if (this._config.debug && this._config.debug.drawScanline && context) {
+        if (process.env.NODE_ENV !== 'production' && debug && debug.drawScanline && context) {
             ImageDebug.drawPath(line, { x: 'x', y: 'y' }, context, { color: 'red', lineWidth: 3 });
         }
 

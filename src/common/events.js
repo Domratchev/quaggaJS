@@ -51,38 +51,22 @@ export default (function () {
             const subscribers = event.subscribers;
 
             // Publish one-time subscriptions
-            subscribers.filter(function (subscriber) {
-                return !!subscriber.once;
-            }).forEach((subscriber) => {
-                publishSubscription(subscriber, data);
-            });
+            subscribers.filter(({ once }) => !!once).forEach(subscriber => publishSubscription(subscriber, data));
 
             // remove them from the subscriber
-            event.subscribers = subscribers.filter(function (subscriber) {
-                return !subscriber.once;
-            });
+            event.subscribers = subscribers.filter(({ once }) => !once);
 
             // publish the rest
-            event.subscribers.forEach((subscriber) => {
-                publishSubscription(subscriber, data);
-            });
+            event.subscribers.forEach(subscriber => publishSubscription(subscriber, data));
         },
         once: function (event, callback, async) {
-            subscribe(event, {
-                callback: callback,
-                async: async,
-                once: true
-            });
+            subscribe(event, { callback, async, once: true });
         },
-        unsubscribe: function (eventName, callback) {
-            let event;
-
+        unsubscribe: function (eventName, _callback) {
             if (eventName) {
-                event = getEvent(eventName);
-                if (event && callback) {
-                    event.subscribers = event.subscribers.filter(function (subscriber) {
-                        return subscriber.callback !== callback;
-                    });
+                const event = getEvent(eventName);
+                if (event && _callback) {
+                    event.subscribers = event.subscribers.filter(({ callback }) => callback !== _callback);
                 } else {
                     event.subscribers = [];
                 }

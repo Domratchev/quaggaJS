@@ -8,7 +8,7 @@
     ]
   ],
   "env": {
-    "commonjs": {
+    "node": {
       "plugins": [
         "add-module-exports"
       ]
@@ -16,7 +16,14 @@
     "test": {
       "plugins": [
         "add-module-exports",
-        "istanbul"
+        [
+          "istanbul",
+          {
+            "exclude": [
+              "**/*.spec.js"
+            ]
+          }
+        ]
       ]
     }
   }

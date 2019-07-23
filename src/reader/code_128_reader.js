@@ -153,6 +153,7 @@ export class Code128Reader extends BarcodeReader {
                     if (correction) {
                         this._correct(counter, correction);
                     }
+
                     for (let code = 0; code < CODE_PATTERN.length; code++) {
                         const error = this._matchPattern(counter, CODE_PATTERN[code]);
                         if (error < bestMatch.error) {
@@ -160,24 +161,29 @@ export class Code128Reader extends BarcodeReader {
                             bestMatch.error = error;
                         }
                     }
+
                     bestMatch.end = i;
+
                     if (bestMatch.code === -1 || bestMatch.error > epsilon) {
                         return null;
                     }
-                    if (CODE_PATTERN[bestMatch.code]) {
-                        bestMatch.correction.bar = this.calculateCorrection(CODE_PATTERN[bestMatch.code], counter,
-                            MODULE_INDICES.bar);
-                        bestMatch.correction.space = this.calculateCorrection(CODE_PATTERN[bestMatch.code], counter,
-                            MODULE_INDICES.space);
+
+                    const expected = CODE_PATTERN[bestMatch.code];
+                    if (expected) {
+                        bestMatch.correction.bar = this.calculateCorrection(expected, counter, MODULE_INDICES.bar);
+                        bestMatch.correction.space = this.calculateCorrection(expected, counter, MODULE_INDICES.space);
                     }
+
                     return bestMatch;
                 } else {
                     counterPos++;
                 }
+
                 counter[counterPos] = 1;
                 isWhite = !isWhite;
             }
         }
+
         return null;
     }
 
@@ -243,6 +249,7 @@ export class Code128Reader extends BarcodeReader {
                 isWhite = !isWhite;
             }
         }
+
         return null;
     }
 
@@ -423,12 +430,14 @@ export class Code128Reader extends BarcodeReader {
     }
 
     _verifyTrailingWhitespace(endInfo) {
-        let trailingWhitespaceEnd = endInfo.end + ((endInfo.end - endInfo.start) / 2);
+        const trailingWhitespaceEnd = endInfo.end + (endInfo.end - endInfo.start) / 2;
+
         if (trailingWhitespaceEnd < this._row.length) {
             if (this._matchRange(endInfo.end, trailingWhitespaceEnd, 0)) {
                 return endInfo;
             }
         }
+
         return null;
     }
 

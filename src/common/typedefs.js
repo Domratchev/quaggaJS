@@ -3,37 +3,20 @@
  * Normalizes browser-specific prefixes
  */
 
-Math.imul = Math.imul || ((a, b) => {
-    const ah = (a >>> 16) & 0xffff;
-    const al = a & 0xffff;
-    const bh = (b >>> 16) & 0xffff;
-    const bl = b & 0xffff;
-    // the shift by 0 fixes the sign on the high part
-    // the final |0 converts the unsigned value into a signed value
-    return ((al * bl) + (((ah * bl + al * bh) << 16) >>> 0) | 0);
-});
-
-if (typeof Object.assign !== 'function') {
-    Object.assign = target => { // .length of function is 2
-        'use strict';
-        if (target === null) { // TypeError if undefined or null
-            throw new TypeError('Cannot convert undefined or null to object');
+if (!Math.imul) {
+    Math.imul = function (opA, opB) {
+        opB |= 0; // ensure that opB is an integer. opA will automatically be coerced.
+        // floating points give us 53 bits of precision to work with plus 1 sign bit
+        // automatically handled for our convienence:
+        // 1. 0x003fffff /*opA & 0x000fffff*/ * 0x7fffffff /*opB*/ = 0x1fffff7fc00001
+        //    0x1fffff7fc00001 < Number.MAX_SAFE_INTEGER /*0x1fffffffffffff*/
+        let result = (opA & 0x003fffff) * opB;
+        // 2. We can remove an integer coersion from the statement above because:
+        //    0x1fffff7fc00001 + 0xffc00000 = 0x1fffffff800001
+        //    0x1fffffff800001 < Number.MAX_SAFE_INTEGER /*0x1fffffffffffff*/
+        if (opA & 0xffc00000 /*!== 0*/) {
+            result += (opA & 0xffc00000) * opB | 0;
         }
-
-        const to = Object(target);
-
-        for (let index = 1; index < arguments.length; index++) {
-            const nextSource = arguments[index];
-
-            if (nextSource !== null) { // Skip over if undefined or null
-                for (let nextKey in nextSource) {
-                    // Avoid bugs when hasOwnProperty is shadowed
-                    if (Object.prototype.hasOwnProperty.call(nextSource, nextKey)) {
-                        to[nextKey] = nextSource[nextKey];
-                    }
-                }
-            }
-        }
-        return to;
+        return result | 0;
     };
 }

@@ -30,6 +30,7 @@ export class UPCEReader extends EANReader {
             result.push(code.code);
             decodedCodes.push(code);
         }
+
         if (!this._determineParity(codeFrequency, result)) {
             return null;
         }
@@ -78,11 +79,14 @@ export class UPCEReader extends EANReader {
     }
 
     _verifyTrailingWhitespace(endInfo) {
-        const trailingWhitespaceEnd = endInfo.end + ((endInfo.end - endInfo.start) / 2);
+        const trailingWhitespaceEnd = endInfo.end + (endInfo.end - endInfo.start) / 2;
+
         if (trailingWhitespaceEnd < this._row.length) {
             if (this._matchRange(endInfo.end, trailingWhitespaceEnd, 0)) {
                 return endInfo;
             }
         }
+
+        return null;
     }
 }

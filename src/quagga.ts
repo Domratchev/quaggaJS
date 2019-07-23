@@ -4,12 +4,12 @@ import Events from './common/events';
 import { ImageDebug } from './common/image_debug';
 import { ImageWrapper } from './common/image_wrapper';
 import { merge } from './common/merge';
-import Config from './config/config';
+import { config } from './config/config';
 import { BarcodeDecoder } from './decoder/barcode_decoder';
 import CameraAccess from './input/camera_access';
-import BarcodeLocator from './locator/barcode_locator';
-import { FrameGrabber } from 'Input/frame_grabber';
-import { InputStream } from 'Input/input_stream';
+import { FrameGrabber } from './input/frame_grabber';
+import { InputStream } from './input/input_stream';
+import BarcodeLocator from './locator/barcode_locator.2';
 
 export interface WorkerThread {
     worker: Worker;
@@ -102,13 +102,13 @@ export class Quagga {
 
     private _initCanvas(): void {
         if (typeof document !== 'undefined') {
-            const $viewport = this._getViewPort();
+            const viewport = this._getViewPort();
             this._canvasContainer.dom.image = document.querySelector('canvas.imgBuffer');
             if (!this._canvasContainer.dom.image) {
                 this._canvasContainer.dom.image = document.createElement('canvas');
                 this._canvasContainer.dom.image.className = 'imgBuffer';
-                if ($viewport && this._config.inputStream.type === 'ImageStream') {
-                    $viewport.appendChild(this._canvasContainer.dom.image);
+                if (viewport && this._config.inputStream.type === 'ImageStream') {
+                    viewport.appendChild(this._canvasContainer.dom.image);
                 }
             }
             this._canvasContainer.ctx.image = this._canvasContainer.dom.image.getContext('2d');
@@ -119,13 +119,13 @@ export class Quagga {
             if (!this._canvasContainer.dom.overlay) {
                 this._canvasContainer.dom.overlay = document.createElement('canvas');
                 this._canvasContainer.dom.overlay.className = 'drawingBuffer';
-                if ($viewport) {
-                    $viewport.appendChild(this._canvasContainer.dom.overlay);
+                if (viewport) {
+                    viewport.appendChild(this._canvasContainer.dom.overlay);
                 }
                 const clearFix = document.createElement('br');
                 clearFix.setAttribute('clear', 'all');
-                if ($viewport) {
-                    $viewport.appendChild(clearFix);
+                if (viewport) {
+                    viewport.appendChild(clearFix);
                 }
             }
             this._canvasContainer.ctx.overlay = this._canvasContainer.dom.overlay.getContext('2d');
@@ -144,7 +144,7 @@ export class Quagga {
             });
         }
 
-        if (ENV.development) {
+        if (process.env.NODE_ENV !== 'production') {
             console.log(this._inputImageWrapper.size);
         }
         this._boxSize = [
@@ -304,16 +304,16 @@ export class Quagga {
                 URL.revokeObjectURL(blobURL);
                 workerThread.busy = false;
                 workerThread.imageData = new Uint8Array(ev.data.imageData);
-                if (ENV.development) {
+                if (process.env.NODE_ENV !== 'production') {
                     console.log('Worker initialized');
                 }
-                return cb(workerThread);
+                cb(workerThread);
             } else if (ev.data.event === 'processed') {
                 workerThread.imageData = new Uint8Array(ev.data.imageData);
                 workerThread.busy = false;
                 this._publishResult(ev.data.result, workerThread.imageData);
             } else if (ev.data.event === 'error') {
-                if (ENV.development) {
+                if (process.env.NODE_ENV !== 'production') {
                     console.log('Worker error:', ev.data.message);
                 }
             }
@@ -327,8 +327,8 @@ export class Quagga {
         }, [workerThread.imageData.buffer]);
     }
 
-    private _configForWorker(config) {
-        return merge(config, { inputStream: { target: null } });
+    private _configForWorker(_config) {
+        return merge(_config, { inputStream: { target: null } });
     }
 
     private _workerInterface(factory) {
@@ -344,13 +344,13 @@ export class Quagga {
 
         self.onmessage = function (e) {
             if (e.data.cmd === 'init') {
-                const config = e.data.config;
-                config.numOfWorkers = 0;
+                const _config = e.data.config;
+                _config.numOfWorkers = 0;
                 imageWrapper = new ImageWrapper({
                     x: e.data.size.x,
                     y: e.data.size.y
                 }, new Uint8Array(e.data.imageData));
-                quagga = new Quagga(config, ready, imageWrapper);
+                quagga = new Quagga(_config, ready, imageWrapper);
                 quagga.onProcessed(onProcessed);
             } else if (e.data.cmd === 'process') {
                 imageWrapper.data = new Uint8Array(e.data.imageData);
@@ -397,9 +397,9 @@ export class Quagga {
         }
         if (increaseBy < 0) {
             const workersToTerminate = this._workerPool.slice(increaseBy);
-            workersToTerminate.forEach(function (workerThread) {
-                workerThread.worker.terminate();
-                if (ENV.development) {
+            workersToTerminate.forEach(({ worker }) => {
+                worker.terminate();
+                if (process.env.NODE_ENV !== 'production') {
                     console.log('Worker terminated!');
                 }
             });
@@ -409,18 +409,18 @@ export class Quagga {
             for (let i = 0; i < increaseBy; i++) {
                 this._initWorker(workerInitialized);
             }
+        }
 
-            function workerInitialized(workerThread: WorkerThread): void {
-                this._workerPool.push(workerThread);
-                if (this._workerPool.length >= capacity) {
-                    cb && cb();
-                }
+        function workerInitialized(workerThread: WorkerThread): void {
+            this._workerPool.push(workerThread);
+            if (this._workerPool.length >= capacity && cb) {
+                cb();
             }
         }
     }
 
-    constructor(config, cb: () => void, imageWrapper: ImageWrapper) {
-        this._config = merge(Config, config);
+    constructor(_config, cb: () => void, imageWrapper: ImageWrapper) {
+        this._config = merge(config, _config);
         if (imageWrapper) {
             this._onUIThread = false;
             this._initializeData(imageWrapper);
@@ -470,7 +470,7 @@ export class Quagga {
         if (this._decoder) {
             this._decoder.setReaders(readers);
         } else if (this._onUIThread && this._workerPool.length > 0) {
-            this._workerPool.forEach(workerThread => workerThread.worker.postMessage({ cmd: 'setReaders', readers: readers }));
+            this._workerPool.forEach(({ worker }) => worker.postMessage({ cmd: 'setReaders', readers }));
         }
     }
 
@@ -484,20 +484,20 @@ export class Quagga {
         return this._canvasContainer;
     }
 
-    decodeSingle(config, resultCallback): void {
-        config = merge({
+    decodeSingle(_config, resultCallback): void {
+        _config = merge({
             inputStream: {
                 type: 'ImageStream',
                 sequence: false,
                 size: 800,
-                src: config.src
+                src: _config.src
             },
-            numOfWorkers: (ENV.development && config.debug) ? 0 : 1,
+            numOfWorkers: (process.env.NODE_ENV !== 'production' && _config.debug) ? 0 : 1,
             locator: {
                 halfSample: false
             }
-        }, config);
-        this.init(config, () => {
+        }, _config);
+        this.init(_config, () => {
             Events.once('processed', (result) => {
                 this.stop();
                 resultCallback.call(null, result);

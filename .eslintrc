@@ -1,7 +1,7 @@
 {
     "extends": "eslint:recommended",
     "parserOptions": {
-        "ecmaVersion": 8,
+        "ecmaVersion": 2018,
         "sourceType": "module"
     },
     "env": {
@@ -54,8 +54,11 @@
             }
         ],
         "indent": [
-            2,
-            4
+            "error",
+            4,
+            {
+                "SwitchCase": 1
+            }
         ],
         "brace-style": [
             2,

@@ -132,9 +132,9 @@ export function hsv2rgb(hsv, rgb) {
 
     rgb = rgb || [0, 0, 0];
 
-    rgb[0] = ((r + m) * 255) | 0;
-    rgb[1] = ((g + m) * 255) | 0;
-    rgb[2] = ((b + m) * 255) | 0;
+    rgb[0] = (r + m) * 255 | 0;
+    rgb[1] = (g + m) * 255 | 0;
+    rgb[2] = (b + m) * 255 | 0;
 
     return rgb;
 }
@@ -147,7 +147,7 @@ function _computeDivisors(n) {
         if (n % divisor === 0) {
             divisors.push(divisor);
             if (divisor * divisor !== n) {
-                largeDivisors.unshift(Math.floor(n / divisor));
+                largeDivisors.unshift(n / divisor | 0);
             }
         }
     }
@@ -168,7 +168,7 @@ function _computeCommonDivisors(m, n) {
     for (let divisor = 1; divisor * divisor <= min; divisor++) {
         if (max % divisor === 0 && min % divisor === 0) {
             divisors.push(divisor);
-            const largeDivisor = Math.floor(min / divisor);
+            const largeDivisor = min / divisor | 0;
             if (divisor !== largeDivisor && max % largeDivisor === 0) {
                 largeDivisors.unshift();
             }
@@ -179,7 +179,7 @@ function _computeCommonDivisors(m, n) {
 }
 
 export function calculatePatchSize(patchSize, imgSize) {
-    const wideSide = Math.max(imgSize.x, imgSize.y);
+    const wideSide = Math.max(imgSize.x | 0, imgSize.y | 0) | 0;
     const nrOfPatchesList = [8, 10, 15, 20, 32, 60, 80];
     const nrOfPatchesMap = {
         'x-small': 5,
@@ -188,22 +188,22 @@ export function calculatePatchSize(patchSize, imgSize) {
         large: 2,
         'x-large': 1
     };
-    const nrOfPatchesIndex = nrOfPatchesMap[patchSize] || nrOfPatchesMap.medium;
-    const nrOfPatches = nrOfPatchesList[nrOfPatchesIndex];
-    const desiredPatchSize = Math.floor(wideSide / nrOfPatches);
+    const nrOfPatchesIndex = nrOfPatchesMap[patchSize] || nrOfPatchesMap.medium | 0;
+    const nrOfPatches = nrOfPatchesList[nrOfPatchesIndex] | 0;
+    const desiredPatchSize = wideSide / nrOfPatches | 0;
 
     function findPatchSizeForDivisors(divisors) {
         let i = 0;
-        let found = divisors[divisors.length >> 1];
+        let found = divisors[divisors.length >> 1] | 0;
 
         while (i < (divisors.length - 1) && divisors[i] < desiredPatchSize) {
             i++;
         }
         if (i > 0) {
             if (Math.abs(divisors[i] - desiredPatchSize) > Math.abs(divisors[i - 1] - desiredPatchSize)) {
-                found = divisors[i - 1];
+                found = divisors[i - 1] | 0;
             } else {
-                found = divisors[i];
+                found = divisors[i] | 0;
             }
         }
         if (desiredPatchSize / found < nrOfPatchesList[nrOfPatchesIndex + 1] / nrOfPatchesList[nrOfPatchesIndex] &&
@@ -230,26 +230,14 @@ export function _parseCSSDimensionValues(value) {
 }
 
 export const _dimensionsConverters = {
-    top: (dimension, context) => {
-        if (dimension.unit === '%') {
-            return Math.floor(context.height * (dimension.value / 100));
-        }
-    },
-    right: (dimension, context) => {
-        if (dimension.unit === '%') {
-            return Math.floor(context.width * (1 - dimension.value / 100));
-        }
-    },
-    bottom: (dimension, context) => {
-        if (dimension.unit === '%') {
-            return Math.floor(context.height * (1 - dimension.value / 100));
-        }
-    },
-    left: (dimension, context) => {
-        if (dimension.unit === '%') {
-            return Math.floor(context.width * (dimension.value / 100));
-        }
-    }
+    top: (dimension, context) =>
+        dimension.unit === '%' ? context.height * dimension.value / 100 | 0 : context.height,
+    right: (dimension, context) =>
+        dimension.unit === '%' ? context.width - context.width * dimension.value / 100 | 0 : context.width,
+    bottom: (dimension, context) =>
+        dimension.unit === '%' ? context.height - context.height * dimension.value / 100 | 0 : context.height,
+    left: (dimension, context) =>
+        dimension.unit === '%' ? context.width * dimension.value / 100 | 0 : context.width
 };
 
 export function computeImageArea(inputWidth, inputHeight, area) {

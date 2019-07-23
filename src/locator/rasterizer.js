@@ -162,4 +162,4 @@ export class Rasterizer {
             ctx.stroke();
         }
     }
-};
+}
