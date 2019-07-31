@@ -1,7 +1,7 @@
 import { Box } from '../common/box';
 import { ImageWrapper } from '../common/image-wrapper';
 import { Point } from '../common/point';
-import { Readers } from '../reader';
+import { Readers } from '../reader/index';
 import { Barcode, BarcodeReader, BarcodeReaderConfig, BarcodeReaderDeclaration, BarcodeReaderType } from '../reader/barcode-reader';
 import { BarcodeLine, Bresenham } from './bresenham';
 import { ImageDebug } from '../common/image-debug';
