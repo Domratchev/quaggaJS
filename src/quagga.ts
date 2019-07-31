@@ -393,16 +393,15 @@ function _update(): void {
 
 function _startContinuousUpdate(): void {
     const delay = 1000 / (_config.frequency || 60);
-    const that = this;
     let next = null;
     _stopped = false;
 
     (function frame(timestamp): void {
         next = next || timestamp;
-        if (!that._stopped) {
+        if (!_stopped) {
             if (timestamp >= next) {
                 next += delay;
-                that._update();
+                _update();
             }
             window.requestAnimationFrame(frame);
         }
@@ -447,13 +446,13 @@ function _initWorker(cb: (workerThread: WorkerThread) => void): void {
 
 function _workerInterface(factory: Function): void {
     let Quagga: any;
-    const origin = '*';
+    const worker: any = self;
     let imageWrapper: ImageWrapper;
 
     if (factory) {
         Quagga = factory().default;
         if (!Quagga) {
-            self.postMessage({ event: 'error', message: 'Quagga could not be created' }, origin);
+            worker.postMessage({ event: 'error', message: 'Quagga could not be created' });
             return;
         }
     }
@@ -463,13 +462,15 @@ function _workerInterface(factory: Function): void {
             const config: QuaggaConfig = data.config;
             config.numOfWorkers = 0;
             imageWrapper = new Quagga.ImageWrapper({ x: data.size.x, y: data.size.y }, new Uint8Array(data.imageData));
-            Quagga.init(config, () => self.postMessage(
-                { event: 'initialized', imageData: imageWrapper.data }, origin, [imageWrapper.data.buffer]),
+            const imageData = imageWrapper.data;
+            Quagga.init(
+                config,
+                () => worker.postMessage({ event: 'initialized', imageData }, [imageData.buffer]),
                 imageWrapper
             );
-            Quagga.onProcessed((result: QuaggaBarcode) => self.postMessage(
-                { event: 'processed', imageData: imageWrapper.data, result }, origin, [imageWrapper.data.buffer]
-            ));
+            Quagga.onProcessed((result: QuaggaBarcode) =>
+                worker.postMessage({ event: 'processed', imageData, result }, [imageData.buffer])
+            );
         } else if (data.cmd === 'process') {
             imageWrapper.data = new Uint8Array(data.imageData);
             Quagga.start();
