@@ -48,7 +48,7 @@ $(function () {
                     name = $target.attr('name'),
                     states = self._convertNameToStates(name);
 
-                console.log('Value of ' + states + ' changed to ' + value);
+                console.log(`Value of ${states} changed to ${value}`);
                 self.setState(states, value);
             });
         },
@@ -113,9 +113,7 @@ $(function () {
                 }
             },
             inputStream: {
-                src: function (value) {
-                    return '../test/fixtures/' + value + '/';
-                }
+                src: value => `../test/fixtures/${value}/`
             }
         },
         state: {
@@ -143,17 +141,17 @@ $(function () {
                 drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute('width')), parseInt(drawingCanvas.getAttribute('height')));
                 result.boxes.forEach(box => {
                     if (box !== result.box) {
-                        Quagga.ImageDebug.drawPath(box, { x: 'x', y: 'y' }, drawingCtx, { color: 'green', lineWidth: 2 });
+                        Quagga.ImageDebug.drawPath(box, drawingCtx, 'green', 2);
                     }
                 });
             }
 
             if (result.box) {
-                Quagga.ImageDebug.drawPath(result.box, { x: 'x', y: 'y' }, drawingCtx, { color: '#00F', lineWidth: 2 });
+                Quagga.ImageDebug.drawPath(result.box, drawingCtx, '#00F', 2);
             }
 
             if (result.codeResult && result.codeResult.code) {
-                Quagga.ImageDebug.drawPath(result.line, { x: 'x', y: 'y' }, drawingCtx, { color: 'red', lineWidth: 3 });
+                Quagga.ImageDebug.drawPath(result.line, drawingCtx, 'red', 3);
             }
         }
     });

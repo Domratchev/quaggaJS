@@ -1,16 +1,12 @@
 const UmdPlugin = require('./plugins/umd');
 
 module.exports = {
-    entry: './src/quagga.js',
+    entry: './src/quagga.ts',
     devtool: 'inline-source-map',
     mode: 'development',
     module: {
         rules: [{
-            test: /\.ts$/,
-            exclude: /node_modules/,
-            loader: 'babel-loader'
-        }, {
-            test: /\.js$/,
+            test: /\.(js|ts)$/,
             exclude: /node_modules/,
             loader: 'babel-loader'
         }]

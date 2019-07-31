@@ -1,11 +1,10 @@
 {
   "name": "quagga",
-  "version": "0.13.0",
-  "description": "An advanced barcode-scanner written in JavaScript",
-  "main": "lib/quagga.js",
-  "typings": "type-definitions/quagga.d.ts",
+  "version": "0.14.0",
+  "description": "An advanced barcode-scanner written in JavaScript / TypeScript",
+  "main": "dist/quagga.node.js",
   "browser": "dist/quagga.min.js",
-  "module": "src/quagga.js",
+  "typings": "dist/quagga.d.ts",
   "devDependencies": {
     "@babel/core": "^7.5.5",
     "@babel/plugin-proposal-class-properties": "^7.5.5",
@@ -13,7 +12,9 @@
     "@babel/plugin-transform-runtime": "^7.5.5",
     "@babel/preset-env": "^7.5.5",
     "@babel/preset-typescript": "^7.3.3",
+    "@types/async": "^3.0.1",
     "@types/node": "^12.6.8",
+    "@types/sinon": "^7.0.13",
     "async": "^3.1.0",
     "babel-loader": "^8.0.6",
     "babel-plugin-add-module-exports": "^1.0.2",
@@ -32,7 +33,7 @@
     "mocha": "^6.2.0",
     "sinon": "^7.3.2",
     "typescript": "^3.5.3",
-    "webpack": "^4.37.0",
+    "webpack": "^4.38.0",
     "webpack-cli": "^3.3.6",
     "webpack-sources": "^1.3.0"
   },
@@ -46,8 +47,8 @@
     "build:prod": "webpack --config webpack.prod.js",
     "build:node": "webpack --config webpack.node.js",
     "build:types": "tsc --emitDeclarationOnly",
-    "build": "npm run build:dev && npm run build:prod && npm run build:node",
-    "watch": "webpack --config webpack.dev.js --watch",
+    "build": "npm run build:dev && npm run build:prod && npm run build:node && npm run build:types",
+    "watch": "webpack --watch",
     "lint": "eslint src"
   },
   "repository": {

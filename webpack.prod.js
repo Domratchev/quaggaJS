@@ -10,4 +10,7 @@ config.output = config.output || {};
 config.output.filename = 'quagga.min.js';
 config.output.sourceMapFilename = '';
 
+config.resolve = config.resolve || {};
+delete config.resolve.alias;
+
 module.exports = config;

@@ -2,10 +2,13 @@ const webpackConfig = {
     mode: 'production',
     module: {
         rules: [{
-            test: /\.js$/,
+            test: /\.(js|ts)$/,
             exclude: /node_modules/,
             loader: 'babel-loader'
         }]
+    },
+    resolve: {
+        extensions: ['.js', '.ts']
     }
 };
 
@@ -14,12 +17,11 @@ module.exports = function (config) {
         basePath: '',
         frameworks: ['mocha', 'chai', 'sinon'],
         files: [
-            'test/test-main-integration.js',
-            { pattern: 'test/integration/**/*.js', included: false },
+            { pattern: 'test/integration/**/*.ts' },
             { pattern: 'test/fixtures/**/*.*', included: false }
         ],
         preprocessors: {
-            'test/test-main-integration.js': ['webpack']
+            '**/*.ts': ['webpack']
         },
         webpack: webpackConfig,
         plugins: [

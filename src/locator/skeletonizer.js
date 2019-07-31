@@ -19,9 +19,9 @@ function Skeletonizer(stdlib, foreign, buffer) {
             xStart2 = 0,
             offset = 0;
 
-        for ( v = 1; (v | 0) < ((size - 1) | 0); v = (v + 1) | 0) {
+        for (v = 1; (v | 0) < ((size - 1) | 0); v = (v + 1) | 0) {
             offset = (offset + size) | 0;
-            for ( u = 1; (u | 0) < ((size - 1) | 0); u = (u + 1) | 0) {
+            for (u = 1; (u | 0) < ((size - 1) | 0); u = (u + 1) | 0) {
                 yStart1 = (offset - size) | 0;
                 yStart2 = (offset + size) | 0;
                 xStart1 = (u - 1) | 0;
@@ -116,9 +116,9 @@ function Skeletonizer(stdlib, foreign, buffer) {
             xStart2 = 0,
             offset = 0;
 
-        for ( v = 1; (v | 0) < ((size - 1) | 0); v = (v + 1) | 0) {
+        for (v = 1; (v | 0) < ((size - 1) | 0); v = (v + 1) | 0) {
             offset = (offset + size) | 0;
-            for ( u = 1; (u | 0) < ((size - 1) | 0); u = (u + 1) | 0) {
+            for (u = 1; (u | 0) < ((size - 1) | 0); u = (u + 1) | 0) {
                 yStart1 = (offset - size) | 0;
                 yStart2 = (offset + size) | 0;
                 xStart1 = (u - 1) | 0;
@@ -158,14 +158,14 @@ function Skeletonizer(stdlib, foreign, buffer) {
         var x = 0,
             y = 0;
 
-        for ( x = 0; (x | 0) < ((size - 1) | 0); x = (x + 1) | 0) {
+        for (x = 0; (x | 0) < ((size - 1) | 0); x = (x + 1) | 0) {
             images[(imagePtr + x) | 0] = 0;
             images[(imagePtr + y) | 0] = 0;
             y = ((y + size) - 1) | 0;
             images[(imagePtr + y) | 0] = 0;
             y = (y + 1) | 0;
         }
-        for ( x = 0; (x | 0) < (size | 0); x = (x + 1) | 0) {
+        for (x = 0; (x | 0) < (size | 0); x = (x + 1) | 0) {
             images[(imagePtr + y) | 0] = 0;
             y = (y + 1) | 0;
         }
@@ -197,6 +197,7 @@ function Skeletonizer(stdlib, foreign, buffer) {
             done = ((sum | 0) == 0 | 0);
         } while (!done);
     }
+
     return {
         skeletonize: skeletonize
     };

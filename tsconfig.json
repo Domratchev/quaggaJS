@@ -1,23 +1,16 @@
 {
     "compilerOptions": {
         // "allowJs": true,
+        "allowSyntheticDefaultImports": true,
         "declaration": true,
         // "isolatedModules": true,
         "module": "commonjs",
-        "outDir": "dist",
+        "outFile": "dist/quagga",
         "pretty": true,
         // "strict": true,
         "target": "esnext"
     },
     "include": [
         "src"
-    ],
-    "paths": {
-        "Common": [
-            "src/common/"
-        ],
-        "Input": [
-            "src/input/"
-        ]
-    }
+    ]
 }

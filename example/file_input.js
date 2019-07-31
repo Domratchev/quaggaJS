@@ -26,7 +26,7 @@ $(function () {
                     name = $target.attr('name'),
                     state = self._convertNameToState(name);
 
-                console.log('Value of ' + state + ' changed to ' + value);
+                console.log(`Value of ${state} changed to ${value}`);
                 self.setState(state, value);
             });
         },
@@ -43,7 +43,7 @@ $(function () {
             }, obj);
         },
         _convertNameToState: function (name) {
-            return name.replace("_", ".").split("-").reduce((result, value) => {
+            return name.replace('_', '.').split('-').reduce((result, value) => {
                 return result + value.charAt(0).toUpperCase() + value.substring(1);
             });
         },
@@ -152,22 +152,22 @@ $(function () {
                 drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute('width')), parseInt(drawingCanvas.getAttribute('height')));
                 result.boxes.forEach(box => {
                     if (box !== result.box) {
-                        Quagga.ImageDebug.drawPath(box, { x: 'x', y: 'y' }, drawingCtx, { color: 'green', lineWidth: 2 });
+                        Quagga.ImageDebug.drawPath(box, drawingCtx, 'green', 2);
                     }
                 });
             }
 
             if (result.box) {
-                Quagga.ImageDebug.drawPath(result.box, { x: 'x', y: 'y' }, drawingCtx, { color: '#00F', lineWidth: 2 });
+                Quagga.ImageDebug.drawPath(result.box, drawingCtx, '#00F', 2);
             }
 
             if (result.codeResult && result.codeResult.code) {
-                Quagga.ImageDebug.drawPath(result.line, { x: 'x', y: 'y' }, drawingCtx, { color: 'red', lineWidth: 3 });
+                Quagga.ImageDebug.drawPath(result.line, drawingCtx, 'red', 3);
             }
 
             if (App.state.inputStream.area) {
                 area = calculateRectFromArea(drawingCanvas, App.state.inputStream.area);
-                drawingCtx.strokeStyle = "#0F0";
+                drawingCtx.strokeStyle = '#0F0';
                 drawingCtx.strokeRect(area.x, area.y, area.width, area.height);
             }
         }

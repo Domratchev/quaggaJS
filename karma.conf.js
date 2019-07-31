@@ -2,7 +2,7 @@ const webpackConfig = {
     mode: 'development',
     module: {
         rules: [{
-            test: /\.js$/,
+            test: /\.(js|ts)$/,
             exclude: /node_modules/,
             use: {
                 loader: 'babel-loader',
@@ -11,6 +11,9 @@ const webpackConfig = {
                 }
             }
         }]
+    },
+    resolve: {
+        extensions: ['.js', '.ts']
     }
 };
 
@@ -19,11 +22,10 @@ module.exports = config => {
         basePath: '',
         frameworks: ['source-map-support', 'mocha', 'chai', 'sinon'],
         files: [
-            'test/test-main.js',
-            { pattern: 'test/spec/**/*.js', included: false }
+            { pattern: 'test/spec/**/*.ts' }
         ],
         preprocessors: {
-            'test/test-main.js': ['webpack']
+            '**/*.ts': ['webpack']
         },
         webpack: webpackConfig,
         plugins: [

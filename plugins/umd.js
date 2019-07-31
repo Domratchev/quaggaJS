@@ -12,7 +12,7 @@ class UmdPlugin {
         compiler.hooks.thisCompilation.tap(this._pluginName, compilation => {
             const mainTemplate = compilation.mainTemplate;
 
-            mainTemplate.hooks.renderWithEntry.tap(this._pluginName, (source, chunk, hash) => {
+            mainTemplate.hooks.renderWithEntry.tap(this._pluginName, (source, _chunk, _hash) => {
                 return new ConcatSource(new OriginalSource(`
 (function webpackUniversalModuleDefinition(root, factory) {
     if (typeof exports === 'object' && typeof module === 'object') {
