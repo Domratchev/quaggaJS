@@ -509,4 +509,6 @@ export class Quagga {
             }
         }
     }
-};
+}
+
+export default Quagga;

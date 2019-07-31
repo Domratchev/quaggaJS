@@ -1078,6 +1078,7 @@ declare module "quagga" {
         private _generateWorkerBlob;
         private _adjustWorkerPool;
     }
+    export default Quagga;
 }
 declare module "config/config.dev" {
     import { QuaggaConfig } from "config/config";
