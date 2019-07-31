@@ -1023,7 +1023,7 @@ declare module "quagga" {
             overlay: HTMLCanvasElement;
         };
     }
-    export const Quagga: {
+    const _default_1: {
         init(config: QuaggaConfig, cb: () => void, imageWrapper?: ImageWrapper<Uint8Array>): void;
         CameraAccess: {
             request(video: HTMLVideoElement, videoConstraints: MediaTrackConstraints): Promise<void>;
@@ -1051,7 +1051,7 @@ declare module "quagga" {
         setReaders(readers: BarcodeReaderDeclaration[]): void;
         registerResultCollector(resultCollector: ResultCollector): void;
     };
-    export default Quagga;
+    export default _default_1;
 }
 declare module "config/config.dev" {
     import { QuaggaConfig } from "config/config";

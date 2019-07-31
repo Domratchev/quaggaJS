@@ -59,7 +59,7 @@ let _onUIThread: boolean;
 let _resultCollector: ResultCollector;
 let _config: QuaggaConfig;
 
-export const Quagga = {
+export default {
     init(config: QuaggaConfig, cb: () => void, imageWrapper?: ImageWrapper) {
         _onUIThread = true;
         _config = merge(defaultConfig, config);
@@ -115,12 +115,12 @@ export const Quagga = {
             }
         }, config);
 
-        Quagga.init(config, () => {
+        this.init(config, () => {
             Events.once('processed', (result: QuaggaBarcode) => {
-                Quagga.stop();
+                this.stop();
                 resultCallback.call(null, result);
             }, true);
-            Quagga.start();
+            this.start();
         });
     },
 
@@ -446,11 +446,12 @@ function _initWorker(cb: (workerThread: WorkerThread) => void): void {
 }
 
 function _workerInterface(factory: Function): void {
+    let Quagga: any;
     const origin = '*';
     let imageWrapper: ImageWrapper;
 
     if (factory) {
-        (Quagga as any) = factory().default;
+        Quagga = factory().default;
         if (!Quagga) {
             self.postMessage({ event: 'error', message: 'Quagga could not be created' }, origin);
             return;
@@ -461,7 +462,7 @@ function _workerInterface(factory: Function): void {
         if (data.cmd === 'init') {
             const config: QuaggaConfig = data.config;
             config.numOfWorkers = 0;
-            imageWrapper = new ImageWrapper({ x: data.size.x, y: data.size.y }, new Uint8Array(data.imageData));
+            imageWrapper = new Quagga.ImageWrapper({ x: data.size.x, y: data.size.y }, new Uint8Array(data.imageData));
             Quagga.init(config, () => self.postMessage(
                 { event: 'initialized', imageData: imageWrapper.data }, origin, [imageWrapper.data.buffer]),
                 imageWrapper
@@ -510,5 +511,3 @@ function _adjustWorkerPool(capacity: number, cb?: () => void): void {
         }
     }
 }
-
-export default Quagga;

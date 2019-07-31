@@ -1,7 +1,7 @@
 import { eachSeries } from 'async';
 
 import { QuaggaConfig } from '../../src/config/config';
-import { Quagga } from '../../src/quagga';
+import Quagga from '../../src/quagga';
 import { BarcodeFormat } from '../../src/reader/barcode-reader';
 
 interface Sample {
