@@ -11,10 +11,10 @@ declare module "common/point" {
 }
 declare module "common/image-debug" {
     import { Point } from "common/point";
-    export class ImageDebug {
-        static drawPath(path: Array<Point>, context: CanvasRenderingContext2D, color: string, lineWidth: number): void;
-        static drawImage(imageData: Uint8Array, width: number, height: number, context: CanvasRenderingContext2D): boolean;
-    }
+    export const ImageDebug: {
+        drawPath(path: Point[], context: CanvasRenderingContext2D, color: string, lineWidth: number): void;
+        drawImage(imageData: Uint8Array, width: number, height: number, context: CanvasRenderingContext2D): boolean;
+    };
 }
 declare module "common/box" {
     import { Point } from "common/point";
@@ -641,20 +641,20 @@ declare module "common/media-devices" {
     export function getUserMedia(constraints: MediaStreamConstraints): Promise<MediaStream>;
 }
 declare module "input/camera-access" {
-    export class CameraAccess {
+    export const CameraAccess: {
         /**
          * Attempts to attach the camera-stream to a given video element
          * and calls the callback function when the content is ready
          * @param video
          * @param videoConstraints
          */
-        static request(video: HTMLVideoElement, videoConstraints: MediaTrackConstraints): Promise<void>;
-        static release(): void;
-        static enumerateVideoDevices(): Promise<Array<MediaDeviceInfo>>;
-        static getActiveStreamLabel(): string;
-        static getActiveTrack(): MediaStreamTrack;
-        static pickConstraints(videoConstraints: MediaTrackConstraints): MediaStreamConstraints;
-    }
+        request(video: HTMLVideoElement, videoConstraints: MediaTrackConstraints): Promise<void>;
+        release(): void;
+        enumerateVideoDevices(): Promise<MediaDeviceInfo[]>;
+        getActiveStreamLabel(): string;
+        getActiveTrack(): MediaStreamTrack;
+        pickConstraints(videoConstraints: MediaTrackConstraints): MediaStreamConstraints;
+    };
 }
 declare module "input/exif-helper" {
     export const AvailableTags: Array<string>;
@@ -1008,11 +1008,10 @@ declare module "locator/barcode-locator" {
 declare module "quagga" {
     import { ResultCollector } from "analytics/result-collector";
     import { EventCallback, EventSubscription } from "common/events";
-    import { ImageDebug } from "common/image-debug";
     import { ImageWrapper } from "common/image-wrapper";
+    import { Point } from "common/point";
     import { QuaggaConfig } from "config/config";
     import { QuaggaBarcode } from "decoder/barcode-decoder";
-    import { CameraAccess } from "input/camera-access";
     import { BarcodeReaderDeclaration } from "reader/barcode-reader";
     export interface QuaggaCanvasContainer {
         ctx: {
@@ -1024,24 +1023,34 @@ declare module "quagga" {
             overlay: HTMLCanvasElement;
         };
     }
-    export class Quagga {
-        static init(config: QuaggaConfig, cb: () => void, imageWrapper?: ImageWrapper): void;
-        static CameraAccess: CameraAccess;
-        static ImageDebug: ImageDebug;
-        static ImageWrapper: ImageWrapper;
-        static ResultCollector: ResultCollector;
-        static readonly canvas: QuaggaCanvasContainer;
-        static start(): void;
-        static stop(): void;
-        static decodeSingle(config: QuaggaConfig, resultCallback: (_: QuaggaBarcode) => void): void;
-        static pause(): void;
-        static onDetected(callback: EventSubscription | EventCallback): void;
-        static offDetected(callback: EventCallback): void;
-        static onProcessed(callback: EventSubscription | EventCallback): void;
-        static offProcessed(callback: EventCallback): void;
-        static setReaders(readers: Array<BarcodeReaderDeclaration>): void;
-        static registerResultCollector(resultCollector: ResultCollector): void;
-    }
+    export const Quagga: {
+        init(config: QuaggaConfig, cb: () => void, imageWrapper?: ImageWrapper<Uint8Array>): void;
+        CameraAccess: {
+            request(video: HTMLVideoElement, videoConstraints: MediaTrackConstraints): Promise<void>;
+            release(): void;
+            enumerateVideoDevices(): Promise<MediaDeviceInfo[]>;
+            getActiveStreamLabel(): string;
+            getActiveTrack(): MediaStreamTrack;
+            pickConstraints(videoConstraints: MediaTrackConstraints): MediaStreamConstraints;
+        };
+        ImageDebug: {
+            drawPath(path: Point[], context: CanvasRenderingContext2D, color: string, lineWidth: number): void;
+            drawImage(imageData: Uint8Array, width: number, height: number, context: CanvasRenderingContext2D): boolean;
+        };
+        ImageWrapper: typeof ImageWrapper;
+        ResultCollector: typeof ResultCollector;
+        readonly canvas: QuaggaCanvasContainer;
+        start(): void;
+        stop(): void;
+        decodeSingle(config: QuaggaConfig, resultCallback: (_: QuaggaBarcode) => void): void;
+        pause(): void;
+        onDetected(callback: EventCallback | EventSubscription): void;
+        offDetected(callback: EventCallback): void;
+        onProcessed(callback: EventCallback | EventSubscription): void;
+        offProcessed(callback: EventCallback): void;
+        setReaders(readers: BarcodeReaderDeclaration[]): void;
+        registerResultCollector(resultCollector: ResultCollector): void;
+    };
     export default Quagga;
 }
 declare module "config/config.dev" {

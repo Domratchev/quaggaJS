@@ -2,14 +2,14 @@ import { getUserMedia, enumerateDevices } from '../common/media-devices';
 
 let _stream: MediaStream;
 
-export class CameraAccess {
+export const CameraAccess = {
     /**
      * Attempts to attach the camera-stream to a given video element
      * and calls the callback function when the content is ready
      * @param video
      * @param videoConstraints
      */
-    static async request(video: HTMLVideoElement, videoConstraints: MediaTrackConstraints): Promise<void> {
+    async request(video: HTMLVideoElement, videoConstraints: MediaTrackConstraints): Promise<void> {
         const normalizedConstraints = CameraAccess.pickConstraints(videoConstraints);
         _stream = await getUserMedia(normalizedConstraints);
         video.srcObject = _stream;
@@ -21,36 +21,36 @@ export class CameraAccess {
             video.play();
             resolve();
         })).then(_waitForVideo.bind(null, video));
-    }
+    },
 
-    static release(): void {
+    release(): void {
         const tracks = _stream && _stream.getVideoTracks();
         if (tracks && tracks.length) {
             tracks[0].stop();
         }
         _stream = null;
-    }
+    },
 
-    static async enumerateVideoDevices(): Promise<Array<MediaDeviceInfo>> {
+    async enumerateVideoDevices(): Promise<Array<MediaDeviceInfo>> {
         const devices = await enumerateDevices();
         return devices.filter(({ kind }) => kind === 'videoinput');
-    }
+    },
 
-    static getActiveStreamLabel(): string {
+    getActiveStreamLabel(): string {
         const track = CameraAccess.getActiveTrack();
         return track ? track.label : '';
-    }
+    },
 
-    static getActiveTrack() {
+    getActiveTrack() {
         const tracks = _stream && _stream.getVideoTracks();
         if (tracks && tracks.length) {
             return tracks[0];
         }
 
         return null;
-    }
+    },
 
-    static pickConstraints(videoConstraints: MediaTrackConstraints): MediaStreamConstraints {
+    pickConstraints(videoConstraints: MediaTrackConstraints): MediaStreamConstraints {
         let { width, height, facingMode, aspectRatio, deviceId } = videoConstraints;
         const { minAspectRatio, facing } = videoConstraints as any;
 

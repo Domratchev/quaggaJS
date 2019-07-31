@@ -59,8 +59,8 @@ let _onUIThread: boolean;
 let _resultCollector: ResultCollector;
 let _config: QuaggaConfig;
 
-export class Quagga {
-    static init(config: QuaggaConfig, cb: () => void, imageWrapper?: ImageWrapper) {
+export const Quagga = {
+    init(config: QuaggaConfig, cb: () => void, imageWrapper?: ImageWrapper) {
         _onUIThread = true;
         _config = merge(defaultConfig, config);
         if (imageWrapper) {
@@ -70,38 +70,38 @@ export class Quagga {
         } else {
             _initInputStream(cb);
         }
-    }
+    },
 
-    static CameraAccess: CameraAccess;
+    CameraAccess: CameraAccess,
 
-    static ImageDebug: ImageDebug;
+    ImageDebug: ImageDebug,
 
-    static ImageWrapper: ImageWrapper;
+    ImageWrapper: ImageWrapper,
 
-    static ResultCollector: ResultCollector;
+    ResultCollector: ResultCollector,
 
-    static get canvas(): QuaggaCanvasContainer {
+    get canvas(): QuaggaCanvasContainer {
         return _canvasContainer;
-    }
+    },
 
-    static start(): void {
+    start(): void {
         if (_onUIThread && _config.inputStream.type === 'LiveStream') {
             _startContinuousUpdate();
         } else {
             _update();
         }
-    }
+    },
 
-    static stop(): void {
+    stop(): void {
         _stopped = true;
         _adjustWorkerPool(0);
         if (_config.inputStream.type === 'LiveStream') {
             CameraAccess.release();
             _inputStream.clearEventHandlers();
         }
-    }
+    },
 
-    static decodeSingle(config: QuaggaConfig, resultCallback: (_: QuaggaBarcode) => void): void {
+    decodeSingle(config: QuaggaConfig, resultCallback: (_: QuaggaBarcode) => void): void {
         config = merge({
             inputStream: {
                 type: 'ImageStream',
@@ -122,42 +122,42 @@ export class Quagga {
             }, true);
             Quagga.start();
         });
-    }
+    },
 
-    static pause(): void {
+    pause(): void {
         _stopped = true;
-    }
+    },
 
-    static onDetected(callback: EventSubscription | EventCallback): void {
+    onDetected(callback: EventSubscription | EventCallback): void {
         Events.subscribe('detected', callback);
-    }
+    },
 
-    static offDetected(callback: EventCallback): void {
+    offDetected(callback: EventCallback): void {
         Events.unsubscribe('detected', callback);
-    }
+    },
 
-    static onProcessed(callback: EventSubscription | EventCallback): void {
+    onProcessed(callback: EventSubscription | EventCallback): void {
         Events.subscribe('processed', callback);
-    }
+    },
 
-    static offProcessed(callback: EventCallback): void {
+    offProcessed(callback: EventCallback): void {
         Events.unsubscribe('processed', callback);
-    }
+    },
 
-    static setReaders(readers: Array<BarcodeReaderDeclaration>): void {
+    setReaders(readers: Array<BarcodeReaderDeclaration>): void {
         if (_decoder) {
             _decoder.setReaders(readers);
         } else if (_onUIThread && _workerPool.length > 0) {
             _workerPool.forEach(({ worker }) => worker.postMessage({ cmd: 'setReaders', readers }));
         }
-    }
+    },
 
-    static registerResultCollector(resultCollector: ResultCollector): void {
+    registerResultCollector(resultCollector: ResultCollector): void {
         if (resultCollector && typeof resultCollector.addResult === 'function') {
             _resultCollector = resultCollector;
         }
     }
-}
+};
 
 function _initializeData(imageWrapper?: ImageWrapper): void {
     _initBuffers(imageWrapper);

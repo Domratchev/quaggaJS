@@ -1,7 +1,7 @@
 import { Point } from './point';
 
-export class ImageDebug {
-    static drawPath(path: Array<Point>, context: CanvasRenderingContext2D, color: string, lineWidth: number): void {
+export const ImageDebug = {
+    drawPath(path: Array<Point>, context: CanvasRenderingContext2D, color: string, lineWidth: number): void {
         if (path && path.length > 1) {
             context.strokeStyle = color;
             context.fillStyle = color;
@@ -12,9 +12,9 @@ export class ImageDebug {
             context.closePath();
             context.stroke();
         }
-    }
+    },
 
-    static drawImage(imageData: Uint8Array, width: number, height: number, context: CanvasRenderingContext2D): boolean {
+    drawImage(imageData: Uint8Array, width: number, height: number, context: CanvasRenderingContext2D): boolean {
         const canvasData = context.getImageData(0, 0, width, height);
         const data = canvasData.data;
         let imageIndex = imageData.length | 0;
