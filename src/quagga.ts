@@ -18,8 +18,6 @@ import { checkImageConstraints } from './input/input-stream-utils';
 import { BarcodeLocator } from './locator/barcode-locator';
 import { BarcodeReaderDeclaration } from './reader/barcode-reader';
 
-let __factorySource__: string;
-
 interface WorkerThread {
     worker: Worker;
     imageData: Uint8Array;
@@ -481,8 +479,9 @@ function _workerInterface(factory: Function): void {
 }
 
 function _generateWorkerBlob(): string {
-    const blob = new Blob([`(${_workerInterface.toString()})(${__factorySource__ || ''});`],
-        { type: 'text/javascript' });
+    // @ts-ignore
+    let factorySource: string = __factorySource__ || '';
+    const blob = new Blob([`(${_workerInterface.toString()})(${factorySource});`], { type: 'text/javascript' });
 
     return window.URL.createObjectURL(blob);
 }
