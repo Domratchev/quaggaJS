@@ -25,7 +25,7 @@ interface Contour {
     insideContours: Contour;
 }
 
-interface RasterResult {
+export interface RasterResult {
     cc: Contour;
     count: number;
 }
@@ -139,11 +139,11 @@ export class Rasterizer {
     }
 
     drawContour(canvas: HTMLCanvasElement, firstContour: Contour): void {
-        const ctx = canvas.getContext('2d');
+        const context = canvas.getContext('2d');
 
-        ctx.strokeStyle = 'red';
-        ctx.fillStyle = 'red';
-        ctx.lineWidth = 1;
+        context.strokeStyle = 'red';
+        context.fillStyle = 'red';
+        context.lineWidth = 1;
 
         let pq = firstContour;
         let iq = pq && pq.insideContours;
@@ -160,29 +160,29 @@ export class Rasterizer {
 
             switch (q.dir) {
                 case ContourDirection.CW: {
-                    ctx.strokeStyle = 'red';
+                    context.strokeStyle = 'red';
                     break;
                 }
                 case ContourDirection.CCW: {
-                    ctx.strokeStyle = 'blue';
+                    context.strokeStyle = 'blue';
                     break;
                 }
                 case ContourDirection.Unknown: {
-                    ctx.strokeStyle = 'green';
+                    context.strokeStyle = 'green';
                     break;
                 }
             }
 
             let p = q.firstVertex;
-            ctx.beginPath();
-            ctx.moveTo(p.x, p.y);
+            context.beginPath();
+            context.moveTo(p.x, p.y);
 
             do {
                 p = p.next;
-                ctx.lineTo(p.x, p.y);
+                context.lineTo(p.x, p.y);
             } while (p !== q.firstVertex);
 
-            ctx.stroke();
+            context.stroke();
         }
     }
 }

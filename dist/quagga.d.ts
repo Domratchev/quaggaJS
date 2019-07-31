@@ -918,7 +918,7 @@ declare module "locator/rasterizer" {
         nextPeer?: Contour;
         insideContours: Contour;
     }
-    interface RasterResult {
+    export interface RasterResult {
         cc: Contour;
         count: number;
     }
@@ -1014,11 +1014,6 @@ declare module "quagga" {
     import { QuaggaBarcode } from "decoder/barcode-decoder";
     import { CameraAccess } from "input/camera-access";
     import { BarcodeReaderDeclaration } from "reader/barcode-reader";
-    export interface WorkerThread {
-        worker: Worker;
-        imageData: Uint8Array;
-        busy: boolean;
-    }
     export interface QuaggaCanvasContainer {
         ctx: {
             image: CanvasRenderingContext2D;
@@ -1030,53 +1025,22 @@ declare module "quagga" {
         };
     }
     export class Quagga {
-        private _inputStream;
-        private _frameGrabber;
-        private _stopped;
-        private readonly _canvasContainer;
-        private _inputImageWrapper;
-        private _locator;
-        private _boxSize;
-        private _decoder;
-        private _workerPool;
-        private _onUIThread;
-        private _resultCollector;
-        private _config;
-        static decodeSingle(_config: QuaggaConfig, resultCallback: (_: QuaggaBarcode) => void): void;
-        constructor(_config: QuaggaConfig, cb: () => void, imageWrapper?: ImageWrapper);
-        readonly canvas: QuaggaCanvasContainer;
-        start(): void;
-        stop(): void;
-        pause(): void;
-        onDetected(callback: EventSubscription | EventCallback): void;
-        offDetected(callback: EventCallback): void;
-        onProcessed(callback: EventSubscription | EventCallback): void;
-        offProcessed(callback: EventCallback): void;
-        setReaders(readers: Array<BarcodeReaderDeclaration>): void;
-        registerResultCollector(resultCollector: ResultCollector): void;
-        CameraAccess: CameraAccess;
-        ImageDebug: ImageDebug;
-        ImageWrapper: ImageWrapper;
-        ResultCollector: ResultCollector;
-        private _initializeData;
-        private _initInputStream;
-        private _getViewPort;
-        private _canRecord;
-        private _initCanvas;
-        private _initBuffers;
-        private _getBoundingBoxes;
-        private _transform;
-        private _transformResult;
-        private _addResult;
-        private _hasCodeResult;
-        private _publishResult;
-        private _locateAndDecode;
-        private _update;
-        private _startContinuousUpdate;
-        private _initWorker;
-        private _workerInterface;
-        private _generateWorkerBlob;
-        private _adjustWorkerPool;
+        static init(config: QuaggaConfig, cb: () => void, imageWrapper?: ImageWrapper): void;
+        static CameraAccess: CameraAccess;
+        static ImageDebug: ImageDebug;
+        static ImageWrapper: ImageWrapper;
+        static ResultCollector: ResultCollector;
+        static readonly canvas: QuaggaCanvasContainer;
+        static start(): void;
+        static stop(): void;
+        static decodeSingle(config: QuaggaConfig, resultCallback: (_: QuaggaBarcode) => void): void;
+        static pause(): void;
+        static onDetected(callback: EventSubscription | EventCallback): void;
+        static offDetected(callback: EventCallback): void;
+        static onProcessed(callback: EventSubscription | EventCallback): void;
+        static offProcessed(callback: EventCallback): void;
+        static setReaders(readers: Array<BarcodeReaderDeclaration>): void;
+        static registerResultCollector(resultCollector: ResultCollector): void;
     }
     export default Quagga;
 }

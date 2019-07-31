@@ -6,7 +6,7 @@ import { ImageDebug } from './common/image-debug';
 import { ImageWrapper } from './common/image-wrapper';
 import { merge } from './common/merge';
 import { Point } from './common/point';
-import { config, QuaggaConfig } from './config/config';
+import { config as defaultConfig, QuaggaConfig } from './config/config';
 import { BarcodeDecoder, QuaggaBarcode } from './decoder/barcode-decoder';
 import { CameraAccess } from './input/camera-access';
 import { FrameGrabber } from './input/frame-grabber';
@@ -18,7 +18,9 @@ import { checkImageConstraints } from './input/input-stream-utils';
 import { BarcodeLocator } from './locator/barcode-locator';
 import { BarcodeReaderDeclaration } from './reader/barcode-reader';
 
-export interface WorkerThread {
+let __factorySource__: string;
+
+interface WorkerThread {
     worker: Worker;
     imageData: Uint8Array;
     busy: boolean;
@@ -35,478 +37,476 @@ export interface QuaggaCanvasContainer {
     }
 }
 
-let __factorySource__: string;
+let _inputStream: InputStream;
+let _frameGrabber: FrameGrabber;
+let _stopped: boolean;
+const _canvasContainer: QuaggaCanvasContainer = {
+    ctx: {
+        image: null,
+        overlay: null
+    },
+    dom: {
+        image: null,
+        overlay: null
+    }
+};
+let _inputImageWrapper: ImageWrapper;
+let _locator: BarcodeLocator;
+let _boxSize: Box;
+let _decoder: BarcodeDecoder;
+let _workerPool = new Array<WorkerThread>();
+let _onUIThread: boolean;
+let _resultCollector: ResultCollector;
+let _config: QuaggaConfig;
 
 export class Quagga {
-    private _inputStream: InputStream;
-    private _frameGrabber: FrameGrabber;
-    private _stopped: boolean;
-    private readonly _canvasContainer: QuaggaCanvasContainer;
-    private _inputImageWrapper: ImageWrapper;
-    private _locator: BarcodeLocator;
-    private _boxSize: Box;
-    private _decoder: BarcodeDecoder;
-    private _workerPool: Array<WorkerThread>;
-    private _onUIThread: boolean;
-    private _resultCollector: ResultCollector;
-    private _config: QuaggaConfig;
+    static init(config: QuaggaConfig, cb: () => void, imageWrapper?: ImageWrapper) {
+        _onUIThread = true;
+        _config = merge(defaultConfig, config);
+        if (imageWrapper) {
+            _onUIThread = false;
+            _initializeData(imageWrapper);
+            cb();
+        } else {
+            _initInputStream(cb);
+        }
+    }
 
-    static decodeSingle(_config: QuaggaConfig, resultCallback: (_: QuaggaBarcode) => void): void {
-        _config = merge({
+    static CameraAccess: CameraAccess;
+
+    static ImageDebug: ImageDebug;
+
+    static ImageWrapper: ImageWrapper;
+
+    static ResultCollector: ResultCollector;
+
+    static get canvas(): QuaggaCanvasContainer {
+        return _canvasContainer;
+    }
+
+    static start(): void {
+        if (_onUIThread && _config.inputStream.type === 'LiveStream') {
+            _startContinuousUpdate();
+        } else {
+            _update();
+        }
+    }
+
+    static stop(): void {
+        _stopped = true;
+        _adjustWorkerPool(0);
+        if (_config.inputStream.type === 'LiveStream') {
+            CameraAccess.release();
+            _inputStream.clearEventHandlers();
+        }
+    }
+
+    static decodeSingle(config: QuaggaConfig, resultCallback: (_: QuaggaBarcode) => void): void {
+        config = merge({
             inputStream: {
                 type: 'ImageStream',
                 sequence: false,
                 size: 800,
-                src: _config.src
+                src: config.src
             },
-            numOfWorkers: (process.env.NODE_ENV !== 'production' && _config.debug) ? 0 : 1,
+            numOfWorkers: (process.env.NODE_ENV !== 'production' && config.debug) ? 0 : 1,
             locator: {
                 halfSample: false
             }
-        }, _config);
+        }, config);
 
-        const quagga = new Quagga(_config, () => {
+        Quagga.init(config, () => {
             Events.once('processed', (result: QuaggaBarcode) => {
-                quagga.stop();
+                Quagga.stop();
                 resultCallback.call(null, result);
             }, true);
-            quagga.start();
+            Quagga.start();
         });
     }
 
-    constructor(_config: QuaggaConfig, cb: () => void, imageWrapper?: ImageWrapper) {
-        this._onUIThread = true;
-        this._canvasContainer = {
-            ctx: {
-                image: null,
-                overlay: null
-            },
-            dom: {
-                image: null,
-                overlay: null
-            }
-        };
-        this._workerPool = new Array<WorkerThread>();
-        this._config = merge(config, _config);
-        if (imageWrapper) {
-            this._onUIThread = false;
-            this._initializeData(imageWrapper);
-            cb();
-        } else {
-            this._initInputStream(cb);
-        }
+    static pause(): void {
+        _stopped = true;
     }
 
-    get canvas(): QuaggaCanvasContainer {
-        return this._canvasContainer;
-    }
-
-    start(): void {
-        if (this._onUIThread && this._config.inputStream.type === 'LiveStream') {
-            this._startContinuousUpdate();
-        } else {
-            this._update();
-        }
-    }
-
-    stop(): void {
-        this._stopped = true;
-        this._adjustWorkerPool(0);
-        if (this._config.inputStream.type === 'LiveStream') {
-            CameraAccess.release();
-            this._inputStream.clearEventHandlers();
-        }
-    }
-
-    pause(): void {
-        this._stopped = true;
-    }
-
-    onDetected(callback: EventSubscription | EventCallback): void {
+    static onDetected(callback: EventSubscription | EventCallback): void {
         Events.subscribe('detected', callback);
     }
 
-    offDetected(callback: EventCallback): void {
+    static offDetected(callback: EventCallback): void {
         Events.unsubscribe('detected', callback);
     }
 
-    onProcessed(callback: EventSubscription | EventCallback): void {
+    static onProcessed(callback: EventSubscription | EventCallback): void {
         Events.subscribe('processed', callback);
     }
 
-    offProcessed(callback: EventCallback): void {
+    static offProcessed(callback: EventCallback): void {
         Events.unsubscribe('processed', callback);
     }
 
-    setReaders(readers: Array<BarcodeReaderDeclaration>): void {
-        if (this._decoder) {
-            this._decoder.setReaders(readers);
-        } else if (this._onUIThread && this._workerPool.length > 0) {
-            this._workerPool.forEach(({ worker }) => worker.postMessage({ cmd: 'setReaders', readers }));
+    static setReaders(readers: Array<BarcodeReaderDeclaration>): void {
+        if (_decoder) {
+            _decoder.setReaders(readers);
+        } else if (_onUIThread && _workerPool.length > 0) {
+            _workerPool.forEach(({ worker }) => worker.postMessage({ cmd: 'setReaders', readers }));
         }
     }
 
-    registerResultCollector(resultCollector: ResultCollector): void {
+    static registerResultCollector(resultCollector: ResultCollector): void {
         if (resultCollector && typeof resultCollector.addResult === 'function') {
-            this._resultCollector = resultCollector;
+            _resultCollector = resultCollector;
         }
     }
+}
 
-    CameraAccess: CameraAccess;
-    ImageDebug: ImageDebug;
-    ImageWrapper: ImageWrapper;
-    ResultCollector: ResultCollector;
+function _initializeData(imageWrapper?: ImageWrapper): void {
+    _initBuffers(imageWrapper);
+    _decoder = new BarcodeDecoder(_config.decoder, _inputImageWrapper);
+}
 
-    private _initializeData(imageWrapper?: ImageWrapper): void {
-        this._initBuffers(imageWrapper);
-        this._decoder = new BarcodeDecoder(this._config.decoder, this._inputImageWrapper);
+function _initInputStream(callback: (err?: any) => void): void {
+    let video: HTMLVideoElement;
+    if (_config.inputStream.type === 'VideoStream') {
+        video = document.createElement('video');
+        _inputStream = new VideoStream(video);
+    } else if (_config.inputStream.type === 'ImageStream') {
+        _inputStream = new ImageStream();
+    } else if (_config.inputStream.type === 'LiveStream') {
+        const viewport = _getViewPort();
+        if (viewport) {
+            video = viewport.querySelector('video');
+            if (!video) {
+                video = document.createElement('video');
+                viewport.appendChild(video);
+            }
+        }
+        _inputStream = new LiveStream(video);
+        CameraAccess.request(video, _config.inputStream.constraints)
+            .then(() => _inputStream.trigger('canrecord'), err => callback(err));
     }
 
-    private _initInputStream(callback: (err?: any) => void): void {
-        let video: HTMLVideoElement;
-        if (this._config.inputStream.type === 'VideoStream') {
-            video = document.createElement('video');
-            this._inputStream = new VideoStream(video);
-        } else if (this._config.inputStream.type === 'ImageStream') {
-            this._inputStream = new ImageStream();
-        } else if (this._config.inputStream.type === 'LiveStream') {
-            const viewport = this._getViewPort();
+    _inputStream.setAttribute('preload', 'auto');
+    _inputStream.config = _config.inputStream;
+    _inputStream.addEventListener('canrecord', _canRecord.bind(this, callback));
+}
+
+function _getViewPort(): HTMLElement {
+    const target = _config.inputStream.target;
+    // Check if target is already a DOM element
+    if (target instanceof HTMLElement) {
+        return target;
+    } else {
+        // Use '#interactive.viewport' as a fallback selector (backwards compatibility)
+        const selector = typeof target === 'string' ? target : '#interactive.viewport';
+        return document.querySelector(selector);
+    }
+}
+
+function _canRecord(cb: () => void): void {
+    checkImageConstraints(_inputStream, _config.locator);
+    _initCanvas();
+    _frameGrabber = new FrameGrabber(_inputStream, _canvasContainer.dom.image);
+
+    _adjustWorkerPool(_config.numOfWorkers, () => {
+        if (_config.numOfWorkers === 0) {
+            _initializeData();
+        }
+
+        _inputStream.play();
+        cb();
+    });
+}
+
+function _initCanvas(): void {
+    if (typeof document !== 'undefined') {
+        const viewport = _getViewPort();
+        _canvasContainer.dom.image = document.querySelector('canvas.imgBuffer');
+        if (!_canvasContainer.dom.image) {
+            _canvasContainer.dom.image = document.createElement('canvas');
+            _canvasContainer.dom.image.className = 'imgBuffer';
+            if (viewport && _config.inputStream.type === 'ImageStream') {
+                viewport.appendChild(_canvasContainer.dom.image);
+            }
+        }
+        _canvasContainer.ctx.image = _canvasContainer.dom.image.getContext('2d');
+        _canvasContainer.dom.image.width = _inputStream.canvasWidth;
+        _canvasContainer.dom.image.height = _inputStream.canvasHeight;
+
+        _canvasContainer.dom.overlay = document.querySelector('canvas.drawingBuffer');
+        if (!_canvasContainer.dom.overlay) {
+            _canvasContainer.dom.overlay = document.createElement('canvas');
+            _canvasContainer.dom.overlay.className = 'drawingBuffer';
             if (viewport) {
-                video = viewport.querySelector('video');
-                if (!video) {
-                    video = document.createElement('video');
-                    viewport.appendChild(video);
-                }
+                viewport.appendChild(_canvasContainer.dom.overlay);
             }
-            this._inputStream = new LiveStream(video);
-            CameraAccess.request(video, this._config.inputStream.constraints)
-                .then(() => this._inputStream.trigger('canrecord'), err => callback(err));
-        }
-
-        this._inputStream.setAttribute('preload', 'auto');
-        this._inputStream.config = this._config.inputStream;
-        this._inputStream.addEventListener('canrecord', this._canRecord.bind(this, callback));
-    }
-
-    private _getViewPort(): HTMLElement {
-        const target = this._config.inputStream.target;
-        // Check if target is already a DOM element
-        if (target instanceof HTMLElement) {
-            return target;
-        } else {
-            // Use '#interactive.viewport' as a fallback selector (backwards compatibility)
-            const selector = typeof target === 'string' ? target : '#interactive.viewport';
-            return document.querySelector(selector);
-        }
-    }
-
-    private _canRecord(cb: () => void): void {
-        checkImageConstraints(this._inputStream, this._config.locator);
-        this._initCanvas();
-        this._frameGrabber = new FrameGrabber(this._inputStream, this._canvasContainer.dom.image);
-
-        this._adjustWorkerPool(this._config.numOfWorkers, () => {
-            if (this._config.numOfWorkers === 0) {
-                this._initializeData();
+            const clearFix = document.createElement('br');
+            clearFix.setAttribute('clear', 'all');
+            if (viewport) {
+                viewport.appendChild(clearFix);
             }
+        }
+        _canvasContainer.ctx.overlay = _canvasContainer.dom.overlay.getContext('2d');
+        _canvasContainer.dom.overlay.width = _inputStream.canvasWidth;
+        _canvasContainer.dom.overlay.height = _inputStream.canvasHeight;
+    }
+}
 
-            this._inputStream.play();
-            cb();
+function _initBuffers(imageWrapper?: ImageWrapper): void {
+    if (imageWrapper) {
+        _inputImageWrapper = imageWrapper;
+    } else {
+        _inputImageWrapper = new ImageWrapper({
+            x: _inputStream.width,
+            y: _inputStream.height
         });
     }
 
-    private _initCanvas(): void {
-        if (typeof document !== 'undefined') {
-            const viewport = this._getViewPort();
-            this._canvasContainer.dom.image = document.querySelector('canvas.imgBuffer');
-            if (!this._canvasContainer.dom.image) {
-                this._canvasContainer.dom.image = document.createElement('canvas');
-                this._canvasContainer.dom.image.className = 'imgBuffer';
-                if (viewport && this._config.inputStream.type === 'ImageStream') {
-                    viewport.appendChild(this._canvasContainer.dom.image);
-                }
-            }
-            this._canvasContainer.ctx.image = this._canvasContainer.dom.image.getContext('2d');
-            this._canvasContainer.dom.image.width = this._inputStream.canvasWidth;
-            this._canvasContainer.dom.image.height = this._inputStream.canvasHeight;
+    if (process.env.NODE_ENV !== 'production') {
+        console.log(_inputImageWrapper.size);
+    }
+    _boxSize = [
+        { x: 0, y: 0 },
+        { x: 0, y: _inputImageWrapper.size.y },
+        { x: _inputImageWrapper.size.x, y: _inputImageWrapper.size.y },
+        { x: _inputImageWrapper.size.x, y: 0 }
+    ];
+    _locator = new BarcodeLocator(_inputImageWrapper, _config.locator);
+}
 
-            this._canvasContainer.dom.overlay = document.querySelector('canvas.drawingBuffer');
-            if (!this._canvasContainer.dom.overlay) {
-                this._canvasContainer.dom.overlay = document.createElement('canvas');
-                this._canvasContainer.dom.overlay.className = 'drawingBuffer';
-                if (viewport) {
-                    viewport.appendChild(this._canvasContainer.dom.overlay);
-                }
-                const clearFix = document.createElement('br');
-                clearFix.setAttribute('clear', 'all');
-                if (viewport) {
-                    viewport.appendChild(clearFix);
-                }
-            }
-            this._canvasContainer.ctx.overlay = this._canvasContainer.dom.overlay.getContext('2d');
-            this._canvasContainer.dom.overlay.width = this._inputStream.canvasWidth;
-            this._canvasContainer.dom.overlay.height = this._inputStream.canvasHeight;
-        }
+function _getBoundingBoxes(): Array<Box> {
+    if (_config.locate) {
+        return _locator.locate();
+    } else {
+        return [[
+            _boxSize[0],
+            _boxSize[1],
+            _boxSize[2],
+            _boxSize[3]
+        ]];
+    }
+}
+
+function _transform(polygon: ReadonlyArray<Point>, offset: Point): void {
+    polygon.forEach(vertex => {
+        vertex.x += offset.x;
+        vertex.y += offset.y;
+    })
+}
+
+function _transformResult(result: QuaggaBarcode, offset: Point): void {
+    if (result.barcodes) {
+        result.barcodes.forEach(barcode => _transformResult(barcode, offset));
     }
 
-    private _initBuffers(imageWrapper?: ImageWrapper): void {
-        if (imageWrapper) {
-            this._inputImageWrapper = imageWrapper;
-        } else {
-            this._inputImageWrapper = new ImageWrapper({
-                x: this._inputStream.width,
-                y: this._inputStream.height
-            });
-        }
-
-        if (process.env.NODE_ENV !== 'production') {
-            console.log(this._inputImageWrapper.size);
-        }
-        this._boxSize = [
-            { x: 0, y: 0 },
-            { x: 0, y: this._inputImageWrapper.size.y },
-            { x: this._inputImageWrapper.size.x, y: this._inputImageWrapper.size.y },
-            { x: this._inputImageWrapper.size.x, y: 0 }
-        ];
-        this._locator = new BarcodeLocator(this._inputImageWrapper, this._config.locator);
+    if (result.line) {
+        _transform(result.line, offset);
     }
 
-    private _getBoundingBoxes(): Array<Box> {
-        if (this._config.locate) {
-            return this._locator.locate();
-        } else {
-            return [[
-                this._boxSize[0],
-                this._boxSize[1],
-                this._boxSize[2],
-                this._boxSize[3]
-            ]];
-        }
+    if (result.box) {
+        _transform(result.box, offset);
     }
 
-    private _transform(polygon: ReadonlyArray<Point>, offset: Point): void {
-        polygon.forEach(vertex => {
-            vertex.x += offset.x;
-            vertex.y += offset.y;
-        })
+    if (result.boxes) {
+        result.boxes.forEach(box => _transform(box, offset));
     }
+}
 
-    private _transformResult(result: QuaggaBarcode, offset: Point): void {
+function _addResult(result: QuaggaBarcode, imageData: Uint8Array, canvasWidth: number, canvasHeight: number): void {
+    if (imageData && _resultCollector) {
         if (result.barcodes) {
-            result.barcodes.forEach(barcode => this._transformResult(barcode, offset));
-        }
-
-        if (result.line) {
-            this._transform(result.line, offset);
-        }
-
-        if (result.box) {
-            this._transform(result.box, offset);
-        }
-
-        if (result.boxes) {
-            result.boxes.forEach(box => this._transform(box, offset));
-        }
-    }
-
-    private _addResult(result: QuaggaBarcode, imageData: Uint8Array, canvasWidth: number, canvasHeight: number): void {
-        if (imageData && this._resultCollector) {
-            if (result.barcodes) {
-                result.barcodes.forEach(({ codeResult }) => {
-                    if (codeResult) {
-                        this._resultCollector.addResult(imageData, canvasWidth, canvasHeight, codeResult)
-                    }
-                });
-            } else if (result.codeResult) {
-                this._resultCollector.addResult(imageData, canvasWidth, canvasHeight, result.codeResult);
-            }
-        }
-    }
-
-    private _hasCodeResult(result: QuaggaBarcode): boolean {
-        return result && (!!result.codeResult || result.barcodes && result.barcodes.some(barcode => !!barcode.codeResult));
-    }
-
-    private _publishResult(result?: QuaggaBarcode, imageData?: Uint8Array): void {
-        let resultToPublish: QuaggaBarcode | Array<QuaggaBarcode> = result;
-
-        if (result && this._onUIThread) {
-            const offset = this._inputStream.topLeft;
-
-            if (offset.x !== 0 || offset.y !== 0) {
-                this._transformResult(result, offset);
-            }
-
-            this._addResult(result, imageData, this._inputStream.canvasWidth, this._inputStream.canvasHeight);
-            resultToPublish = result.barcodes || result;
-        }
-
-        Events.publish('processed', resultToPublish);
-        if (this._hasCodeResult(result)) {
-            Events.publish('detected', resultToPublish);
-        }
-    }
-
-    private _locateAndDecode(): void {
-        const boxes = this._getBoundingBoxes();
-
-        if (boxes) {
-            const result = this._decoder.decodeFromBoundingBoxes(boxes) || {};
-            result.boxes = boxes;
-            this._publishResult(result, this._inputImageWrapper.data);
-        } else {
-            this._publishResult();
-        }
-    }
-
-    private _update(): void {
-        let availableWorker;
-
-        if (this._onUIThread) {
-            if (this._workerPool.length > 0) {
-                availableWorker = this._workerPool.find(workerThread => !workerThread.busy);
-                if (availableWorker) {
-                    this._frameGrabber.attachData(availableWorker.imageData);
-                } else {
-                    return; // all workers are busy
-                }
-            } else {
-                this._frameGrabber.attachData(this._inputImageWrapper.data);
-            }
-            if (this._frameGrabber.grab()) {
-                if (availableWorker) {
-                    availableWorker.busy = true;
-                    availableWorker.worker.postMessage({
-                        cmd: 'process',
-                        imageData: availableWorker.imageData
-                    }, [availableWorker.imageData.buffer]);
-                } else {
-                    this._locateAndDecode();
-                }
-            }
-        } else {
-            this._locateAndDecode();
-        }
-    }
-
-    private _startContinuousUpdate(): void {
-        const delay = 1000 / (this._config.frequency || 60);
-        const that = this;
-        let next = null;
-        this._stopped = false;
-
-        (function frame(timestamp): void {
-            next = next || timestamp;
-            if (!that._stopped) {
-                if (timestamp >= next) {
-                    next += delay;
-                    that._update();
-                }
-                window.requestAnimationFrame(frame);
-            }
-        }(performance.now()));
-    }
-
-    private _initWorker(cb: (workerThread: WorkerThread) => void): void {
-        const blobURL = this._generateWorkerBlob();
-        const workerThread = {
-            worker: new Worker(blobURL),
-            imageData: new Uint8Array(this._inputStream.width * this._inputStream.height),
-            busy: true
-        };
-
-        workerThread.worker.onmessage = ({ data }) => {
-            if (data.event === 'initialized') {
-                URL.revokeObjectURL(blobURL);
-                workerThread.busy = false;
-                workerThread.imageData = new Uint8Array(data.imageData);
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log('Worker initialized');
-                }
-                cb(workerThread);
-            } else if (data.event === 'processed') {
-                workerThread.busy = false;
-                workerThread.imageData = new Uint8Array(data.imageData);
-                this._publishResult(data.result, workerThread.imageData);
-            } else if (data.event === 'error') {
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log('Worker error:', data.message);
-                }
-            }
-        };
-
-        workerThread.worker.postMessage({
-            cmd: 'init',
-            size: { x: this._inputStream.width, y: this._inputStream.height },
-            imageData: workerThread.imageData,
-            config: merge(this._config, { inputStream: { target: null } })
-        }, [workerThread.imageData.buffer]);
-    }
-
-    private _workerInterface(factory: Function): void {
-        const origin = '*';
-        let quagga: Quagga;
-        let imageWrapper: ImageWrapper;
-
-        if (factory) {
-            quagga = factory().default;
-            if (!quagga) {
-                self.postMessage({ event: 'error', message: 'Quagga could not be created' }, origin);
-                return;
-            }
-        }
-
-        self.onmessage = ({ data }) => {
-            if (data.cmd === 'init') {
-                const _config: QuaggaConfig = data.config;
-                _config.numOfWorkers = 0;
-                imageWrapper = new ImageWrapper({ x: data.size.x, y: data.size.y }, new Uint8Array(data.imageData));
-                quagga = new Quagga(_config, () => self.postMessage(
-                    { event: 'initialized', imageData: imageWrapper.data }, origin, [imageWrapper.data.buffer]),
-                    imageWrapper
-                );
-                quagga.onProcessed((result: QuaggaBarcode) => self.postMessage(
-                    { event: 'processed', imageData: imageWrapper.data, result }, origin, [imageWrapper.data.buffer]
-                ));
-            } else if (data.cmd === 'process') {
-                imageWrapper.data = new Uint8Array(data.imageData);
-                quagga.start();
-            } else if (data.cmd === 'setReaders') {
-                quagga.setReaders(data.readers);
-            }
-        };
-    }
-
-    private _generateWorkerBlob(): string {
-        const blob = new Blob([`(${this._workerInterface.toString()})(${__factorySource__ || ''});`],
-            { type: 'text/javascript' });
-
-        return window.URL.createObjectURL(blob);
-    }
-
-    private _adjustWorkerPool(capacity: number, cb?: () => void): void {
-        const increaseBy = capacity - this._workerPool.length;
-        if (increaseBy === 0) {
-            return cb && cb();
-        }
-        if (increaseBy < 0) {
-            this._workerPool.slice(increaseBy).forEach(({ worker }) => {
-                worker.terminate();
-                if (process.env.NODE_ENV !== 'production') {
-                    console.log('Worker terminated!');
+            result.barcodes.forEach(({ codeResult }) => {
+                if (codeResult) {
+                    _resultCollector.addResult(imageData, canvasWidth, canvasHeight, codeResult)
                 }
             });
-            this._workerPool = this._workerPool.slice(0, increaseBy);
-            return cb && cb();
-        } else {
-            for (let i = 0; i < increaseBy; i++) {
-                this._initWorker(workerThread => {
-                    this._workerPool.push(workerThread);
-                    if (this._workerPool.length >= capacity && cb) {
-                        cb();
-                    }
-                });
+        } else if (result.codeResult) {
+            _resultCollector.addResult(imageData, canvasWidth, canvasHeight, result.codeResult);
+        }
+    }
+}
+
+function _hasCodeResult(result: QuaggaBarcode): boolean {
+    return result && (!!result.codeResult || result.barcodes && result.barcodes.some(barcode => !!barcode.codeResult));
+}
+
+function _publishResult(result?: QuaggaBarcode, imageData?: Uint8Array): void {
+    let resultToPublish: QuaggaBarcode | Array<QuaggaBarcode> = result;
+
+    if (result && _onUIThread) {
+        const offset = _inputStream.topLeft;
+
+        if (offset.x !== 0 || offset.y !== 0) {
+            _transformResult(result, offset);
+        }
+
+        _addResult(result, imageData, _inputStream.canvasWidth, _inputStream.canvasHeight);
+        resultToPublish = result.barcodes || result;
+    }
+
+    Events.publish('processed', resultToPublish);
+    if (_hasCodeResult(result)) {
+        Events.publish('detected', resultToPublish);
+    }
+}
+
+function _locateAndDecode(): void {
+    const boxes = _getBoundingBoxes();
+
+    if (boxes) {
+        const result = _decoder.decodeFromBoundingBoxes(boxes) || {};
+        result.boxes = boxes;
+        _publishResult(result, _inputImageWrapper.data);
+    } else {
+        _publishResult();
+    }
+}
+
+function _update(): void {
+    let availableWorker: WorkerThread;
+
+    if (_onUIThread) {
+        if (_workerPool.length > 0) {
+            availableWorker = _workerPool.find(workerThread => !workerThread.busy);
+            if (availableWorker) {
+                _frameGrabber.attachData(availableWorker.imageData);
+            } else {
+                return; // all workers are busy
             }
+        } else {
+            _frameGrabber.attachData(_inputImageWrapper.data);
+        }
+        if (_frameGrabber.grab()) {
+            if (availableWorker) {
+                availableWorker.busy = true;
+                availableWorker.worker.postMessage({
+                    cmd: 'process',
+                    imageData: availableWorker.imageData
+                }, [availableWorker.imageData.buffer]);
+            } else {
+                _locateAndDecode();
+            }
+        }
+    } else {
+        _locateAndDecode();
+    }
+}
+
+function _startContinuousUpdate(): void {
+    const delay = 1000 / (_config.frequency || 60);
+    const that = this;
+    let next = null;
+    _stopped = false;
+
+    (function frame(timestamp): void {
+        next = next || timestamp;
+        if (!that._stopped) {
+            if (timestamp >= next) {
+                next += delay;
+                that._update();
+            }
+            window.requestAnimationFrame(frame);
+        }
+    }(performance.now()));
+}
+
+function _initWorker(cb: (workerThread: WorkerThread) => void): void {
+    const blobURL = _generateWorkerBlob();
+    const workerThread = {
+        worker: new Worker(blobURL),
+        imageData: new Uint8Array(_inputStream.width * _inputStream.height),
+        busy: true
+    };
+
+    workerThread.worker.onmessage = ({ data }) => {
+        if (data.event === 'initialized') {
+            URL.revokeObjectURL(blobURL);
+            workerThread.busy = false;
+            workerThread.imageData = new Uint8Array(data.imageData);
+            if (process.env.NODE_ENV !== 'production') {
+                console.log('Worker initialized');
+            }
+            cb(workerThread);
+        } else if (data.event === 'processed') {
+            workerThread.busy = false;
+            workerThread.imageData = new Uint8Array(data.imageData);
+            _publishResult(data.result, workerThread.imageData);
+        } else if (data.event === 'error') {
+            if (process.env.NODE_ENV !== 'production') {
+                console.log('Worker error:', data.message);
+            }
+        }
+    };
+
+    workerThread.worker.postMessage({
+        cmd: 'init',
+        size: { x: _inputStream.width, y: _inputStream.height },
+        imageData: workerThread.imageData,
+        config: merge(_config, { inputStream: { target: null } })
+    }, [workerThread.imageData.buffer]);
+}
+
+function _workerInterface(factory: Function): void {
+    const origin = '*';
+    let imageWrapper: ImageWrapper;
+
+    if (factory) {
+        (Quagga as any) = factory().default;
+        if (!Quagga) {
+            self.postMessage({ event: 'error', message: 'Quagga could not be created' }, origin);
+            return;
+        }
+    }
+
+    self.onmessage = ({ data }) => {
+        if (data.cmd === 'init') {
+            const config: QuaggaConfig = data.config;
+            config.numOfWorkers = 0;
+            imageWrapper = new ImageWrapper({ x: data.size.x, y: data.size.y }, new Uint8Array(data.imageData));
+            Quagga.init(config, () => self.postMessage(
+                { event: 'initialized', imageData: imageWrapper.data }, origin, [imageWrapper.data.buffer]),
+                imageWrapper
+            );
+            Quagga.onProcessed((result: QuaggaBarcode) => self.postMessage(
+                { event: 'processed', imageData: imageWrapper.data, result }, origin, [imageWrapper.data.buffer]
+            ));
+        } else if (data.cmd === 'process') {
+            imageWrapper.data = new Uint8Array(data.imageData);
+            Quagga.start();
+        } else if (data.cmd === 'setReaders') {
+            Quagga.setReaders(data.readers);
+        }
+    };
+}
+
+function _generateWorkerBlob(): string {
+    const blob = new Blob([`(${_workerInterface.toString()})(${__factorySource__ || ''});`],
+        { type: 'text/javascript' });
+
+    return window.URL.createObjectURL(blob);
+}
+
+function _adjustWorkerPool(capacity: number, cb?: () => void): void {
+    const increaseBy = capacity - _workerPool.length;
+    if (increaseBy === 0) {
+        return cb && cb();
+    }
+    if (increaseBy < 0) {
+        _workerPool.slice(increaseBy).forEach(({ worker }) => {
+            worker.terminate();
+            if (process.env.NODE_ENV !== 'production') {
+                console.log('Worker terminated!');
+            }
+        });
+        _workerPool = _workerPool.slice(0, increaseBy);
+        return cb && cb();
+    } else {
+        for (let i = 0; i < increaseBy; i++) {
+            _initWorker(workerThread => {
+                _workerPool.push(workerThread);
+                if (_workerPool.length >= capacity && cb) {
+                    cb();
+                }
+            });
         }
     }
 }
