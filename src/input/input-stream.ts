@@ -63,13 +63,9 @@ export abstract class InputStream {
         return this._canvasWidth;
     }
 
-    get config(): InputStreamConfig {
-        return this._config;
-    }
+    abstract get config(): InputStreamConfig;
 
-    set config(config: InputStreamConfig) {
-        this._config = config;
-    }
+    abstract set config(config: InputStreamConfig);
 
     abstract get ended(): boolean;
 

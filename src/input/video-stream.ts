@@ -19,9 +19,13 @@ export class VideoStream extends InputStream {
         return this._video.videoWidth;
     }
 
+    get config(): InputStreamConfig {
+        return this._config;
+    }
+
     set config(config: InputStreamConfig) {
-        this._config = config;
-        this._video.src = (typeof config.src !== 'undefined') ? config.src : '';
+        this._config = { ...config };
+        this._video.src = config.src || '';
     }
 
     get ended(): boolean {

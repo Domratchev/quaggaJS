@@ -44,8 +44,8 @@ export class ImageStream extends InputStream {
     }
 
     set config(config: InputStreamConfig) {
-        this._config = config;
-        this._baseUrl = config.src;
+        this._config = { ...config };
+        this._baseUrl = config.src || '';
 
         this._loadImages();
     }

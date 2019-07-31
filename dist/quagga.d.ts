@@ -696,7 +696,7 @@ declare module "input/input-stream" {
         setCanvasSize(width: number, height: number): void;
         readonly canvasHeight: number;
         readonly canvasWidth: number;
-        config: InputStreamConfig;
+        abstract config: InputStreamConfig;
         abstract readonly ended: boolean;
         abstract setAttribute(name: string, value: string): void;
         abstract pause(): void;

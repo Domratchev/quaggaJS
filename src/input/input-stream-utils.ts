@@ -93,10 +93,11 @@ export function checkImageConstraints(inputStream: InputStream, config: BarcodeL
     let width = inputStream.width;
     let height = inputStream.height;
     const shift = config.halfSample ? 1 : 0 | 0;
+    const inputStreamConfig = inputStream.config;
 
     // calculate width and height based on area
-    if (inputStream.config.area) {
-        const area = computeImageArea(width, height, inputStream.config.area);
+    if (inputStreamConfig && inputStreamConfig.area) {
+        const area = computeImageArea(width, height, inputStreamConfig.area);
         inputStream.topLeft = area.topLeft;
         inputStream.setCanvasSize(width, height);
         width = area.width;
