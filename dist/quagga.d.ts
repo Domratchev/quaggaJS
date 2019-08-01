@@ -407,7 +407,7 @@ declare module "decoder/bresenham" {
         min?: number;
         threshold?: number;
     }
-    export class Bresenham {
+    export const Bresenham: {
         /**
          * Scans a line of the given image from point p1 to p2 and returns a result object containing
          * gray-scale values (0-255) of the underlying pixels in addition to the min and max values.
@@ -416,14 +416,14 @@ declare module "decoder/bresenham" {
          * @param p2 The end point {x,y}
          * @returns {line, min, max}
          */
-        static getBarcodeLine(imageWrapper: ImageWrapper, p1: Point, p2: Point): BarcodeLine;
+        getBarcodeLine(imageWrapper: ImageWrapper<Uint8Array>, p1: Point, p2: Point): BarcodeLine;
         /**
          * Converts the result from getBarcodeLine into a binary representation
          * also considering the frequency and slope of the signal for more robust results
          * @param result {line, min, max}
          */
-        static toBinaryLine(result: BarcodeLine): BarcodeLine;
-    }
+        toBinaryLine(result: BarcodeLine): BarcodeLine;
+    };
 }
 declare module "decoder/barcode-decoder" {
     import { Box } from "common/box";
@@ -723,14 +723,10 @@ declare module "input/frame-grabber" {
         private _topLeft;
         constructor(inputStream: InputStream, canvas: HTMLCanvasElement);
         /**
-         * Uses the given array as frame-buffer
+         * Fetches a frame from the input stream and puts into the frame buffer.
+         * The image data is converted to gray scale and then half-sampled if configured.
          */
-        attachData(data: Uint8Array): void;
-        /**
-         * Fetches a frame from the input-stream and puts into the frame-buffer.
-         * The image-data is converted to gray-scale and then half-sampled if configured.
-         */
-        grab(): boolean;
+        grab(data: Uint8Array): boolean;
         private _adjustCanvasSize;
         private _grayAndHalfSampleFromCanvasData;
         private _computeGray;
@@ -1083,14 +1079,10 @@ declare module "input/frame-grabber.node" {
         private _topLeft;
         constructor(inputStream: InputStream);
         /**
-         * Uses the given array as frame-buffer
+         * Fetches a frame from the input stream and puts into the frame buffer.
+         * The image data is converted to gray scale and then half-sampled if configured.
          */
-        attachData(data: Uint8Array): void;
-        /**
-         * Fetches a frame from the input-stream and puts into the frame-buffer.
-         * The image-data is converted to gray-scale and then half-sampled if configured.
-         */
-        grab(): boolean;
+        grab(data: Uint8Array): boolean;
         private _scaleAndCrop;
         private _computeGray;
     }

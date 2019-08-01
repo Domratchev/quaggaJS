@@ -72,7 +72,7 @@ export class ImageStream extends InputStream {
     private _loadImages(): void {
         this._loaded = false;
 
-        getPixels(this._baseUrl, this._config.mime, (err, pixels: ndarray<number>) => {
+        getPixels(this._baseUrl, this._config.mime, (err: any, pixels: ndarray<number>) => {
             if (err) {
                 console.log(err);
                 process.exit(1);

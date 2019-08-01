@@ -2,8 +2,7 @@ const config = require('./webpack.config.js');
 
 config.externals = [
     'get-pixels',
-    'ndarray',
-    'ndarray-linear-interpolate'
+    'ndarray'
 ];
 
 config.mode = 'production';

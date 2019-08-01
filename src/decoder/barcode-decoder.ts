@@ -80,28 +80,19 @@ export class BarcodeDecoder {
     }
 
     decodeFromBoundingBoxes(boxes: Array<Box>): QuaggaBarcode {
-        const barcodes = [];
-        const multiple = this._config.multiple;
+        let barcode: QuaggaBarcode = null;
 
-        for (let i = 0; i < boxes.length; i++) {
-            const box = boxes[i];
-            const result = this.decodeFromBoundingBox(box) || {};
-            result.box = box;
-
-            if (multiple) {
-                barcodes.push(result);
-            } else if (result.codeResult) {
-                return result;
+        if (boxes) {
+            if (this._config.multiple) {
+                const barcodes = boxes.map(box => this.decodeFromBoundingBox(box));
+                return { barcodes, boxes };
+            }
+            if (boxes.some(box => !!(barcode = this.decodeFromBoundingBox(box)))) {
+                barcode.boxes = boxes;
             }
         }
 
-        if (multiple) {
-            return {
-                barcodes
-            };
-        }
-
-        return null;
+        return barcode;
     }
 
     /**
@@ -140,9 +131,10 @@ export class BarcodeDecoder {
         }
 
         return {
+            angle,
+            box,
             codeResult: result.codeResult,
             line,
-            angle,
             pattern: result.barcodeLine.line,
             threshold: result.barcodeLine.threshold
         };
@@ -246,17 +238,11 @@ export class BarcodeDecoder {
             this._printPattern(barcodeLine.line);
         }
 
-        for (let i = 0; i < this._barcodeReaders.length; i++) {
-            const codeResult = this._barcodeReaders[i].decodePattern(barcodeLine.line);
-            if (codeResult) {
-                return {
-                    codeResult,
-                    barcodeLine
-                };
-            }
-        }
+        let codeResult: Barcode = null;
 
-        return null;
+        this._barcodeReaders.some(reader => !!(codeResult = reader.decodePattern(barcodeLine.line)));
+
+        return codeResult ? { codeResult, barcodeLine } : null;
     }
 
     /**

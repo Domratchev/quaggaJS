@@ -93,10 +93,8 @@ export abstract class InputStream {
     trigger(eventName: string, argArray?: any) {
         const handlers = this._eventHandlers.get(eventName);
 
-        if (handlers && handlers.length > 0) {
-            for (let j = 0; j < handlers.length; j++) {
-                handlers[j].apply(this, argArray);
-            }
+        if (handlers) {
+            handlers.forEach(handler => handler.apply(this, argArray));
         }
     }
 

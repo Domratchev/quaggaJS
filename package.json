@@ -81,7 +81,6 @@
   },
   "dependencies": {
     "get-pixels": "^3.3.2",
-    "ndarray": "^1.0.18",
-    "ndarray-linear-interpolate": "^1.0.0"
+    "ndarray": "^1.0.18"
   }
 }

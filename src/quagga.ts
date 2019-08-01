@@ -271,19 +271,6 @@ function _initBuffers(imageWrapper?: ImageWrapper): void {
     _locator = new BarcodeLocator(_inputImageWrapper, _config.locator);
 }
 
-function _getBoundingBoxes(): Array<Box> {
-    if (_config.locate) {
-        return _locator.locate();
-    } else {
-        return [[
-            _boxSize[0],
-            _boxSize[1],
-            _boxSize[2],
-            _boxSize[3]
-        ]];
-    }
-}
-
 function _transform(polygon: ReadonlyArray<Point>, offset: Point): void {
     polygon.forEach(vertex => {
         vertex.x += offset.x;
@@ -348,41 +335,27 @@ function _publishResult(result?: QuaggaBarcode, imageData?: Uint8Array): void {
 }
 
 function _locateAndDecode(): void {
-    const boxes = _getBoundingBoxes();
-
-    if (boxes) {
-        const result = _decoder.decodeFromBoundingBoxes(boxes) || {};
-        result.boxes = boxes;
-        _publishResult(result, _inputImageWrapper.data);
-    } else {
-        _publishResult();
-    }
+    const boxes = _config.locate ? _locator.locate() : [_boxSize];
+    const result = _decoder.decodeFromBoundingBoxes(boxes);
+    _publishResult(result, _inputImageWrapper.data);
 }
 
 function _update(): void {
-    let availableWorker: WorkerThread;
-
     if (_onUIThread) {
         if (_workerPool.length > 0) {
-            availableWorker = _workerPool.find(workerThread => !workerThread.busy);
-            if (availableWorker) {
-                _frameGrabber.attachData(availableWorker.imageData);
-            } else {
+            const availableWorker = _workerPool.find(({ busy }) => !busy);
+            if (!availableWorker) {
                 return; // all workers are busy
             }
-        } else {
-            _frameGrabber.attachData(_inputImageWrapper.data);
-        }
-        if (_frameGrabber.grab()) {
-            if (availableWorker) {
+
+            const imageData = availableWorker.imageData;
+
+            if (_frameGrabber.grab(imageData)) {
                 availableWorker.busy = true;
-                availableWorker.worker.postMessage({
-                    cmd: 'process',
-                    imageData: availableWorker.imageData
-                }, [availableWorker.imageData.buffer]);
-            } else {
-                _locateAndDecode();
+                availableWorker.worker.postMessage({ cmd: 'process', imageData }, [imageData.buffer]);
             }
+        } else if (_frameGrabber.grab(_inputImageWrapper.data)) {
+            _locateAndDecode();
         }
     } else {
         _locateAndDecode();
@@ -460,14 +433,17 @@ function _workerInterface(factory: Function): void {
             const config: QuaggaConfig = data.config;
             config.numOfWorkers = 0;
             imageWrapper = new Quagga.ImageWrapper({ x: data.size.x, y: data.size.y }, new Uint8Array(data.imageData));
-            const imageData = imageWrapper.data;
             Quagga.init(
                 config,
-                () => worker.postMessage({ event: 'initialized', imageData }, [imageData.buffer]),
+                () => worker.postMessage(
+                    { event: 'initialized', imageData: imageWrapper.data }, [imageWrapper.data.buffer]
+                ),
                 imageWrapper
             );
             Quagga.onProcessed((result: QuaggaBarcode) =>
-                worker.postMessage({ event: 'processed', imageData, result }, [imageData.buffer])
+                worker.postMessage(
+                    { event: 'processed', imageData: imageWrapper.data, result }, [imageWrapper.data.buffer]
+                )
             );
         } else if (data.cmd === 'process') {
             imageWrapper.data = new Uint8Array(data.imageData);
@@ -488,19 +464,8 @@ function _generateWorkerBlob(): string {
 
 function _adjustWorkerPool(capacity: number, cb?: () => void): void {
     const increaseBy = capacity - _workerPool.length;
-    if (increaseBy === 0) {
-        return cb && cb();
-    }
-    if (increaseBy < 0) {
-        _workerPool.slice(increaseBy).forEach(({ worker }) => {
-            worker.terminate();
-            if (process.env.NODE_ENV !== 'production') {
-                console.log('Worker terminated!');
-            }
-        });
-        _workerPool = _workerPool.slice(0, increaseBy);
-        return cb && cb();
-    } else {
+
+    if (increaseBy > 0) {
         for (let i = 0; i < increaseBy; i++) {
             _initWorker(workerThread => {
                 _workerPool.push(workerThread);
@@ -509,5 +474,16 @@ function _adjustWorkerPool(capacity: number, cb?: () => void): void {
                 }
             });
         }
+    } else {
+        if (increaseBy < 0) {
+            _workerPool.slice(increaseBy).forEach(({ worker }) => {
+                worker.terminate();
+                if (process.env.NODE_ENV !== 'production') {
+                    console.log('Worker terminated!');
+                }
+            });
+            _workerPool = _workerPool.slice(0, increaseBy);
+        }
+        return cb && cb();
     }
 }

@@ -13,7 +13,7 @@ export interface BarcodeLine {
     threshold?: number;
 }
 
-export class Bresenham {
+export const Bresenham = {
     /**
      * Scans a line of the given image from point p1 to p2 and returns a result object containing
      * gray-scale values (0-255) of the underlying pixels in addition to the min and max values.
@@ -22,7 +22,7 @@ export class Bresenham {
      * @param p2 The end point {x,y}
      * @returns {line, min, max}
      */
-    static getBarcodeLine(imageWrapper: ImageWrapper, p1: Point, p2: Point): BarcodeLine {
+    getBarcodeLine(imageWrapper: ImageWrapper, p1: Point, p2: Point): BarcodeLine {
         let x0 = p1.x | 0;
         let y0 = p1.y | 0;
         let x1 = p2.x | 0;
@@ -86,14 +86,14 @@ export class Bresenham {
             min,
             max
         };
-    }
+    },
 
     /**
      * Converts the result from getBarcodeLine into a binary representation
      * also considering the frequency and slope of the signal for more robust results
      * @param result {line, min, max}
      */
-    static toBinaryLine(result: BarcodeLine): BarcodeLine {
+    toBinaryLine(result: BarcodeLine): BarcodeLine {
         const min = result.min;
         const max = result.max;
         const line = result.line;
@@ -154,5 +154,5 @@ export class Bresenham {
             ...result,
             threshold
         };
-    };
-}
+    }
+};

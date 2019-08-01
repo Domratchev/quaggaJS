@@ -3,8 +3,6 @@ import { InputStream } from './input-stream';
 import { InputStreamConfig } from './input-stream-config';
 
 const ndarray = require('ndarray');
-const interp2D = require('ndarray-linear-interpolate').d2;
-
 type ndarray<_T = number> = any;
 
 export class FrameGrabber {
@@ -56,17 +54,11 @@ export class FrameGrabber {
     }
 
     /**
-     * Uses the given array as frame-buffer
+     * Fetches a frame from the input stream and puts into the frame buffer.
+     * The image data is converted to gray scale and then half-sampled if configured.
      */
-    attachData(data: Uint8Array): void {
+    grab(data: Uint8Array): boolean {
         this._data = data;
-    }
-
-    /**
-     * Fetches a frame from the input-stream and puts into the frame-buffer.
-     * The image-data is converted to gray-scale and then half-sampled if configured.
-     */
-    grab(): boolean {
         const frame = this._inputStream.getFrame();
 
         if (frame) {
@@ -77,7 +69,7 @@ export class FrameGrabber {
         }
     }
 
-    private _scaleAndCrop(frame) {
+    private _scaleAndCrop(frame: ndarray<number>) {
         // 1. compute full-sized gray image
         this._computeGray(frame.data);
 
@@ -85,7 +77,7 @@ export class FrameGrabber {
         for (let y = 0; y < this._canvasHeight; y++) {
             for (let x = 0; x < this._canvasWidth; x++) {
                 this._canvasImageArray
-                    .set(x, y, (interp2D(this._grayImageArray, x * this._stepSizeX, y * this._stepSizeY)) | 0);
+                    .set(x, y, (interp2d(this._grayImageArray, x * this._stepSizeX, y * this._stepSizeY)) | 0);
             }
         }
 
@@ -115,4 +107,23 @@ export class FrameGrabber {
             }
         }
     }
+}
+
+/**
+ * @borrows https://github.com/scijs/ndarray-linear-interpolate
+ */
+function interp2d(arr: ndarray<number>, x: number, y: number): number {
+    const ix = Math.floor(x);
+    const fx = x - ix;
+    const s0 = 0 <= ix && ix < arr.shape[0];
+    const s1 = 0 <= ix + 1 && ix + 1 < arr.shape[0];
+    const iy = Math.floor(y);
+    const fy = y - iy;
+    const t0 = 0 <= iy && iy < arr.shape[1];
+    const t1 = 0 <= iy + 1 && iy + 1 < arr.shape[1];
+    const w00 = s0 && t0 ? arr.get(ix, iy) : 0.0;
+    const w01 = s0 && t1 ? arr.get(ix, iy + 1) : 0.0;
+    const w10 = s1 && t0 ? arr.get(ix + 1, iy) : 0.0;
+    const w11 = s1 && t1 ? arr.get(ix + 1, iy + 1) : 0.0;
+    return (1.0 - fy) * ((1.0 - fx) * w00 + fx * w10) + fy * ((1.0 - fx) * w01 + fx * w11);
 }

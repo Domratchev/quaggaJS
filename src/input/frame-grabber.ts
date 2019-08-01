@@ -50,17 +50,11 @@ export class FrameGrabber {
     }
 
     /**
-     * Uses the given array as frame-buffer
+     * Fetches a frame from the input stream and puts into the frame buffer.
+     * The image data is converted to gray scale and then half-sampled if configured.
      */
-    attachData(data: Uint8Array): void {
+    grab(data: Uint8Array): boolean {
         this._data = data;
-    }
-
-    /**
-     * Fetches a frame from the input-stream and puts into the frame-buffer.
-     * The image-data is converted to gray-scale and then half-sampled if configured.
-     */
-    grab(): boolean {
         const frame = this._inputStream.getFrame();
 
         if (frame) {
